@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import GlowCard from '@/components/common/GlowCard'
 
@@ -29,7 +29,7 @@ const aiResponses: Record<string, string> = {
   'クラウド': 'クラウド権限管理の改善ステップ：\n\n1️⃣ **最小権限の原則**を適用（必要な権限だけ付与）\n2️⃣ **定期的な権限棚卸し**を実施（四半期ごとを推奨）\n3️⃣ **退職者アカウント**の即時無効化フローを構築\n4️⃣ **管理者アカウント**の共有禁止\n5️⃣ **アクセスログ**の定期監査\n\nまずは「AIクラウドセキュリティ」コース（/learn/cloud-security）で基礎を学ぶのが効果的です。',
 }
 
-export default function AgentPage() {
+function AgentContent() {
   const searchParams = useSearchParams()
   const initialQ = searchParams.get('q') || ''
   const [messages, setMessages] = useState<Message[]>([])
@@ -165,5 +165,13 @@ export default function AgentPage() {
         </button>
       </div>
     </div>
+  )
+}
+
+export default function AgentPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-2 border-cyber-glow/30 border-t-cyber-glow rounded-full animate-spin" /></div>}>
+      <AgentContent />
+    </Suspense>
   )
 }
