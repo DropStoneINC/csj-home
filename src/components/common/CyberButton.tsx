@@ -2,7 +2,7 @@
 import { ReactNode } from 'react'
 import clsx from 'clsx'
 
-interface CyberButtonProps {
+export interface CyberButtonProps {
   children: ReactNode
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
@@ -10,6 +10,7 @@ interface CyberButtonProps {
   disabled?: boolean
   onClick?: () => void
   type?: 'button' | 'submit'
+  className?: string
 }
 
 export default function CyberButton({
@@ -20,6 +21,7 @@ export default function CyberButton({
   disabled = false,
   onClick,
   type = 'button',
+  className,
 }: CyberButtonProps) {
   const baseClasses = 'font-semibold rounded-lg transition-all duration-300 inline-flex items-center justify-center gap-2'
 
@@ -47,6 +49,7 @@ export default function CyberButton({
         sizes[size],
         fullWidth && 'w-full',
         disabled && 'opacity-40 cursor-not-allowed',
+        className,
       )}
     >
       {children}

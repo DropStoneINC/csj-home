@@ -45,7 +45,8 @@ export default function AgentPage() {
     if (initialQ) {
       handleSend(initialQ)
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQ])
 
   const getAIResponse = (text: string): string => {
     const lower = text.toLowerCase()
