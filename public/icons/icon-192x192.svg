@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#0a0e1a"/>
+  <path d="M96 32L56 56v40c0 28 17 54 40 64 23-10 40-36 40-64V56L96 32z" fill="none" stroke="#00f0ff" stroke-width="4"/>
+  <path d="M96 48L68 64v32c0 20 12 38 28 46 16-8 28-26 28-46V64L96 48z" fill="#00f0ff" fill-opacity="0.1" stroke="#00f0ff" stroke-width="2"/>
+  <text x="96" y="110" text-anchor="middle" fill="#00f0ff" font-size="32" font-weight="bold" font-family="sans-serif">CS</text>
+</svg>

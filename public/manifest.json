@@ -1,0 +1,26 @@
+{
+  "name": "Cyber Shield Agent",
+  "short_name": "CyberShield",
+  "description": "診断・学習・通報・検索・実践訓練を統合したサイバー防衛エージェントアプリ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e1a",
+  "theme_color": "#0a0e1a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["security", "education", "business"],
+  "lang": "ja"
+}
