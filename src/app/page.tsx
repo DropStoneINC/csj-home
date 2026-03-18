@@ -1,8 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import GlowCard from '@/components/common/GlowCard'
 import ScoreRing from '@/components/common/ScoreRing'
+import { supabase } from '@/lib/supabase'
+import { getUserScore, getScoreEvents } from '@/lib/db'
 
 const quickActions = [
   { label: '自己診断を始める', href: '/assessment/self', icon: '👤', color: 'cyan' as const },
@@ -13,14 +15,58 @@ const quickActions = [
   { label: 'AIに相談する', href: '/agent', icon: '🤖', color: 'cyan' as const },
 ]
 
-const todayTasks = [
-  { text: 'メール設定の簡易診断を完了する', score: '+8', done: false },
-  { text: 'クラウドセキュリティ基礎レッスン1を受講', score: '+2', done: false },
-  { text: '不審メールを1件通報する', score: '+3', done: true },
-]
-
 export default function HomePage() {
   const [chatInput, setChatInput] = useState('')
+  const [score, setScore] = useState(0)
+  const [displayName, setDisplayName] = useState('')
+  const [loggedIn, setLoggedIn] = useState(false)
+  const [lastDelta, setLastDelta] = useState<number | null>(null)
+  const [aiTip, setAiTip] = useState('ログインして診断を受けると、AIがあなたに合った改善提案をします。')
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      setLoggedIn(true)
+
+      // Get profile name
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', user.id)
+        .single()
+      if (profile) setDisplayName(profile.display_name || '')
+
+      // Get score
+      const userScore = await getUserScore(user.id)
+      if (userScore) setScore(userScore.overall_score || 0)
+
+      // Get latest event for delta
+      const events = await getScoreEvents(user.id, 1)
+      if (events.length > 0) setLastDelta(events[0].delta)
+
+      // Dynamic AI tip
+      const s = userScore?.overall_score || 0
+      if (s === 0) {
+        setAiTip('まずは「自己診断テスト」を受けて、現在のセキュリティレベルを把握しましょう。')
+      } else if (s < 15) {
+        setAiTip('自社診断も完了して組織の課題を明確にしましょう。メール設定の改善が最優先です。')
+      } else if (s < 30) {
+        setAiTip('学習コースに取り組んでスコアを伸ばしましょう。クラウドセキュリティ基礎がおすすめです。')
+      } else {
+        setAiTip('順調にスコアが伸びています。脅威通報とペンテスト演習で実践力も高めていきましょう。')
+      }
+    }
+    load()
+  }, [])
+
+  // Task completion based on score
+  const tasks = [
+    { text: '自己診断テストを完了する', score_label: '+5', done: score >= 5, href: '/assessment/self' },
+    { text: '自社診断テストを完了する', score_label: '+8', done: score >= 13, href: '/assessment/company' },
+    { text: 'メール/クラウド簡易診断を実施する', score_label: '+8', done: false, href: '/assessment/email-cloud' },
+  ]
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -28,16 +74,20 @@ export default function HomePage() {
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyber-card via-cyber-surface to-cyber-bg border border-cyber-border/50 p-6 md:p-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-cyber-glow/5 rounded-full blur-3xl" />
         <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
-          <ScoreRing score={62} size={100} />
+          <ScoreRing score={score} size={100} />
           <div className="flex-1">
-            <h2 className="text-xl font-bold mb-1">おかえりなさい</h2>
+            <h2 className="text-xl font-bold mb-1">
+              {loggedIn ? `おかえりなさい${displayName ? `、${displayName}さん` : ''}` : 'Cyber Shield Agent へようこそ'}
+            </h2>
             <p className="text-cyber-muted text-sm mb-3">
-              現在の総合セキュリティスコアは <span className="text-cyber-glow font-bold">62</span> です。
-              前回比 <span className="text-cyber-green">+5</span>
+              {loggedIn
+                ? <>現在の総合セキュリティスコアは <span className="text-cyber-glow font-bold">{score}</span> です。{lastDelta !== null && <> 前回 <span className={lastDelta > 0 ? 'text-cyber-green' : 'text-cyber-red'}>{lastDelta > 0 ? '+' : ''}{lastDelta}</span></>}</>
+                : <><a href="/login" className="text-cyber-glow underline">ログイン</a>してスコアを記録しましょう</>
+              }
             </p>
             <div className="bg-cyber-bg/50 rounded-lg border border-cyber-border/30 p-3">
               <p className="text-xs text-cyber-muted mb-1">🤖 AIからの提案</p>
-              <p className="text-sm">メール認証設定が弱いです。まずSPF/DKIM/DMARCの基礎を学びましょう。</p>
+              <p className="text-sm">{aiTip}</p>
             </div>
           </div>
         </div>
@@ -74,14 +124,16 @@ export default function HomePage() {
           <span>📋</span> 今日のタスク
         </h3>
         <div className="space-y-2">
-          {todayTasks.map((task, i) => (
-            <div key={i} className={`flex items-center gap-3 p-2.5 rounded-lg ${task.done ? 'bg-cyber-green/5' : 'bg-cyber-bg/30'}`}>
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs ${task.done ? 'border-cyber-green bg-cyber-green/20 text-cyber-green' : 'border-cyber-border'}`}>
-                {task.done && '✓'}
+          {tasks.map((task, i) => (
+            <Link key={i} href={task.href}>
+              <div className={`flex items-center gap-3 p-2.5 rounded-lg transition-all ${task.done ? 'bg-cyber-green/5' : 'bg-cyber-bg/30 hover:bg-cyber-bg/50'}`}>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs ${task.done ? 'border-cyber-green bg-cyber-green/20 text-cyber-green' : 'border-cyber-border'}`}>
+                  {task.done && '✓'}
+                </div>
+                <span className={`flex-1 text-sm ${task.done ? 'text-cyber-muted line-through' : ''}`}>{task.text}</span>
+                <span className={`text-xs font-mono ${task.done ? 'text-cyber-green' : 'text-cyber-glow'}`}>{task.score_label}</span>
               </div>
-              <span className={`flex-1 text-sm ${task.done ? 'text-cyber-muted line-through' : ''}`}>{task.text}</span>
-              <span className={`text-xs font-mono ${task.done ? 'text-cyber-green' : 'text-cyber-glow'}`}>{task.score}</span>
-            </div>
+            </Link>
           ))}
         </div>
       </GlowCard>
