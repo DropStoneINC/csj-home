@@ -1,153 +1,175 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { logActivity } from '@/lib/db'
 import GlowCard from '@/components/common/GlowCard'
 import CyberButton from '@/components/common/CyberButton'
 
-const sampleResults = [
-  { id: '1', type: 'url', value: 'http://amaz0n-login.suspicious.com', category: 'phishing', severity: 'critical', confidence: 0.95, reports: 127, firstSeen: '2026-02-15', summary: 'Amazonを模倣したフィッシングサイト。ログイン情報の窃取が目的。' },
-  { id: '2', type: 'domain', value: 'rakuten-verify.xyz', category: 'phishing', severity: 'high', confidence: 0.88, reports: 43, firstSeen: '2026-03-01', summary: '楽天を騙るドメイン。SMS経由でのリンク誘導が報告されている。' },
-  { id: '3', type: 'email', value: 'support@micr0soft-alert.com', category: 'scam', severity: 'high', confidence: 0.91, reports: 89, firstSeen: '2026-01-20', summary: 'Microsoftサポートを装った詐欺メール。偽のセキュリティ警告でアカウント情報を詐取。' },
-  { id: '4', type: 'ip', value: '185.234.219.47', category: 'malware', severity: 'critical', confidence: 0.97, reports: 312, firstSeen: '2025-11-10', summary: 'マルウェアC2サーバー。複数のボットネットとの通信が確認されている。' },
-]
-
-const severityColors: Record<string, string> = {
-  critical: 'text-cyber-red bg-cyber-red/10',
-  high: 'text-orange-400 bg-orange-400/10',
-  medium: 'text-yellow-400 bg-yellow-400/10',
-  low: 'text-cyber-green bg-cyber-green/10',
-}
-
-const categoryLabels: Record<string, string> = {
-  phishing: 'フィッシング',
-  malware: 'マルウェア',
-  scam: '詐欺',
-  spoofing: 'なりすまし',
-  credential_theft: '認証情報窃取',
-}
+const THREATS_URL = 'https://cybershield-jp.vercel.app/threats'
 
 export default function ThreatSearchPage() {
+  const [userId, setUserId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<typeof sampleResults | null>(null)
-  const [searching, setSearching] = useState(false)
-  const [selected, setSelected] = useState<typeof sampleResults[0] | null>(null)
+  const [recentSearches, setRecentSearches] = useState<any[]>([])
+  const [totalThreats, setTotalThreats] = useState(0)
 
-  const handleSearch = () => {
-    setSearching(true)
-    setSelected(null)
-    setTimeout(() => {
-      setResults(sampleResults.filter(r =>
-        r.value.toLowerCase().includes(query.toLowerCase()) ||
-        r.category.includes(query.toLowerCase()) ||
-        query === ''
-      ))
-      setSearching(false)
-    }, 1000)
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+
+        // Get recent searches
+        const { data: searches } = await supabase
+          .from('threat_search_logs')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(5)
+        if (searches) setRecentSearches(searches)
+      }
+
+      // Get total threat count from public indicators
+      const { count } = await supabase
+        .from('threat_reports')
+        .select('*', { count: 'exact', head: true })
+      setTotalThreats(count || 0)
+    }
+    init()
+  }, [])
+
+  const handleSearch = async () => {
+    if (!query.trim()) return
+
+    // Log search to DB
+    if (userId) {
+      await supabase.from('threat_search_logs').insert({
+        user_id: userId,
+        query_text: query,
+        query_type: detectQueryType(query),
+        results_count: 0,
+      })
+      await logActivity(userId, 'threat_searched', 'threat_search', { query })
+
+      // Refresh recent searches
+      const { data } = await supabase
+        .from('threat_search_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      if (data) setRecentSearches(data)
+    }
+
+    // Open external search with query
+    window.open(`${THREATS_URL}?q=${encodeURIComponent(query)}`, '_blank')
+  }
+
+  const detectQueryType = (q: string): string => {
+    if (q.match(/^https?:\/\//)) return 'url'
+    if (q.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) return 'ip'
+    if (q.match(/@/)) return 'email'
+    if (q.match(/^[a-z0-9.-]+\.[a-z]{2,}$/i)) return 'domain'
+    return 'keyword'
+  }
+
+  const formatTime = (ts: string) => {
+    const d = new Date(ts)
+    return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-xl font-bold">🔎 脅威検索データベース</h1>
-      <p className="text-sm text-cyber-muted">URL、ドメイン、IPアドレス、メールアドレスなどを検索できます。</p>
+      <h1 className="text-xl font-bold">🔍 脅威検索データベース</h1>
 
-      <GlowCard hover={false} className="!p-4">
+      {/* Search Box */}
+      <GlowCard hover={false}>
+        <p className="text-sm text-cyber-muted mb-3">URL、IPアドレス、ドメイン、メールアドレス、キーワードで脅威情報を検索</p>
         <div className="flex gap-3">
           <input
             type="text"
+            placeholder="例: example-phishing.com / 192.168.1.1 / suspicious@email.com"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="URL / ドメイン / IP / メール / キーワード で検索..."
-            className="flex-1 bg-cyber-bg/50 border border-cyber-border/50 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyber-glow/50"
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            className="flex-1 bg-cyber-bg/50 border border-cyber-border/50 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyber-glow/50"
           />
-          <CyberButton onClick={handleSearch} disabled={searching}>
-            {searching ? '検索中...' : '検索'}
+          <CyberButton onClick={handleSearch} disabled={!query.trim()}>
+            検索
           </CyberButton>
         </div>
-        <div className="flex gap-2 mt-3">
-          {['phishing', 'malware', 'scam'].map(tag => (
+
+        {/* Quick search examples */}
+        <div className="flex flex-wrap gap-2 mt-3">
+          {['フィッシング', 'ランサムウェア', '詐欺SMS', 'なりすまし'].map(tag => (
             <button
               key={tag}
-              onClick={() => { setQuery(tag); handleSearch() }}
-              className="text-[10px] px-2 py-1 rounded bg-cyber-bg/50 text-cyber-muted hover:text-cyber-glow border border-cyber-border/30 hover:border-cyber-glow/30 transition-all"
+              onClick={() => { setQuery(tag); }}
+              className="text-xs px-3 py-1 bg-cyber-bg/50 border border-cyber-border/30 rounded-full text-cyber-muted hover:text-cyber-glow hover:border-cyber-glow/30 transition-all"
             >
-              {categoryLabels[tag] || tag}
+              {tag}
             </button>
           ))}
         </div>
       </GlowCard>
 
-      {results && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <p className="text-xs text-cyber-muted">{results.length}件の結果</p>
-            {results.map((r) => (
-              <GlowCard
-                key={r.id}
-                glowColor={r.severity === 'critical' ? 'red' : 'cyan'}
-                onClick={() => setSelected(r)}
-                className={`!p-4 ${selected?.id === r.id ? 'border-cyber-glow/40' : ''}`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <span className="text-xs text-cyber-muted uppercase">{r.type}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${severityColors[r.severity]}`}>
-                    {r.severity.toUpperCase()}
+      {/* Link to full DB */}
+      <GlowCard hover={false} className="text-center !py-6">
+        <p className="text-sm text-cyber-muted mb-3">全脅威データベースを閲覧・検索</p>
+        <CyberButton size="lg" onClick={() => window.open(THREATS_URL, '_blank')}>
+          🗄️ 脅威データベースを開く（外部ページ）
+        </CyberButton>
+      </GlowCard>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Recent Searches */}
+        <GlowCard hover={false}>
+          <h3 className="text-sm font-semibold mb-3">🕐 最近の検索履歴</h3>
+          {recentSearches.length === 0 ? (
+            <p className="text-xs text-cyber-muted py-4 text-center">
+              {userId ? '検索履歴はまだありません' : 'ログインすると検索履歴が記録されます'}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {recentSearches.map((s: any) => (
+                <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg bg-cyber-bg/30">
+                  <span className="text-xs px-1.5 py-0.5 bg-cyber-glow/10 text-cyber-glow rounded font-mono">
+                    {s.query_type}
                   </span>
+                  <span className="flex-1 text-sm truncate">{s.query_text}</span>
+                  <span className="text-[10px] text-cyber-muted">{formatTime(s.created_at)}</span>
                 </div>
-                <p className="text-sm font-mono mb-1 break-all">{r.value}</p>
-                <div className="flex items-center gap-3 text-[10px] text-cyber-muted">
-                  <span>{categoryLabels[r.category]}</span>
-                  <span>通報 {r.reports}件</span>
-                  <span>信頼度 {Math.round(r.confidence * 100)}%</span>
-                </div>
-              </GlowCard>
-            ))}
-          </div>
-
-          {selected && (
-            <div className="space-y-3">
-              <GlowCard hover={false}>
-                <h3 className="text-sm font-semibold mb-3">脅威詳細</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between p-2 bg-cyber-bg/30 rounded">
-                    <span className="text-cyber-muted">種別</span>
-                    <span>{selected.type.toUpperCase()}</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-cyber-bg/30 rounded">
-                    <span className="text-cyber-muted">カテゴリ</span>
-                    <span>{categoryLabels[selected.category]}</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-cyber-bg/30 rounded">
-                    <span className="text-cyber-muted">危険度</span>
-                    <span className={severityColors[selected.severity]}>{selected.severity.toUpperCase()}</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-cyber-bg/30 rounded">
-                    <span className="text-cyber-muted">通報数</span>
-                    <span>{selected.reports}件</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-cyber-bg/30 rounded">
-                    <span className="text-cyber-muted">初回検出</span>
-                    <span>{selected.firstSeen}</span>
-                  </div>
-                </div>
-              </GlowCard>
-
-              <GlowCard glowColor="cyan" hover={false}>
-                <h3 className="text-sm font-semibold text-cyber-glow mb-2">🤖 AI要約</h3>
-                <p className="text-sm">{selected.summary}</p>
-              </GlowCard>
-
-              <GlowCard hover={false}>
-                <h3 className="text-sm font-semibold mb-2">対処法</h3>
-                <ul className="text-sm space-y-1.5 text-cyber-muted">
-                  <li>• このURLやドメインにアクセスしないでください</li>
-                  <li>• すでにアクセスした場合はパスワードを変更してください</li>
-                  <li>• 不審なメールは転送せず、通報機能から報告してください</li>
-                  <li>• 社内に周知し、類似の被害を防止してください</li>
-                </ul>
-              </GlowCard>
+              ))}
             </div>
           )}
-        </div>
+        </GlowCard>
+
+        {/* DB Stats */}
+        <GlowCard hover={false}>
+          <h3 className="text-sm font-semibold mb-3">📊 データベース統計</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-2.5 bg-cyber-bg/30 rounded-lg">
+              <span className="text-sm">総脅威レポート数</span>
+              <span className="text-lg font-bold text-cyber-glow">{totalThreats}</span>
+            </div>
+            <div className="flex items-center justify-between p-2.5 bg-cyber-bg/30 rounded-lg">
+              <span className="text-sm">あなたの検索回数</span>
+              <span className="text-lg font-bold text-cyber-glow">{recentSearches.length}</span>
+            </div>
+            <div className="flex items-center justify-between p-2.5 bg-cyber-bg/30 rounded-lg">
+              <span className="text-sm">対応カテゴリ</span>
+              <span className="text-xs text-cyber-muted">URL / IP / ドメイン / メール / キーワード</span>
+            </div>
+          </div>
+        </GlowCard>
+      </div>
+
+      {!userId && (
+        <GlowCard hover={false} className="border-yellow-500/20">
+          <p className="text-sm text-yellow-400">
+            <a href="/login" className="underline">ログイン</a>すると検索履歴が記録され、脅威情報をより効果的に活用できます。
+          </p>
+        </GlowCard>
       )}
     </div>
   )

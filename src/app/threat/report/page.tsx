@@ -1,159 +1,140 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { addScoreEvent, recalcUserScore, logActivity } from '@/lib/db'
 import GlowCard from '@/components/common/GlowCard'
 import CyberButton from '@/components/common/CyberButton'
 
+const REPORT_URL = 'https://cybershield-jp.vercel.app/report'
+
 const reportTypes = [
-  { value: 'url', label: '不審なURL', icon: '🔗' },
-  { value: 'email', label: 'フィッシングメール', icon: '✉️' },
-  { value: 'sms', label: '詐欺SMS', icon: '💬' },
-  { value: 'domain', label: '偽サイト', icon: '🌐' },
-  { value: 'file', label: '不審な添付ファイル', icon: '📎' },
-  { value: 'screenshot', label: 'スクリーンショット', icon: '📸' },
+  { value: 'url', label: 'フィッシングURL', icon: '🔗', desc: '怪しいURLを通報' },
+  { value: 'email', label: '詐欺メール', icon: '✉️', desc: '不審なメールを通報' },
+  { value: 'sms', label: '危険SMS', icon: '📱', desc: '詐欺SMSを通報' },
+  { value: 'domain', label: '偽サイト', icon: '🌐', desc: '偽サイトを通報' },
 ]
 
 export default function ThreatReportPage() {
-  const [step, setStep] = useState<'type' | 'detail' | 'analysis' | 'done'>('type')
-  const [reportType, setReportType] = useState('')
-  const [targetValue, setTargetValue] = useState('')
-  const [description, setDescription] = useState('')
-  const [analyzing, setAnalyzing] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [reportCount, setReportCount] = useState(0)
 
-  const handleSubmit = () => {
-    setStep('analysis')
-    setAnalyzing(true)
-    setTimeout(() => {
-      setAnalyzing(false)
-      setStep('done')
-    }, 3000)
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+        // Get user's report count
+        const { count } = await supabase
+          .from('threat_reports_v2')
+          .select('*', { count: 'exact', head: true })
+          .eq('reporter_user_id', user.id)
+        setReportCount(count || 0)
+      }
+    }
+    init()
+  }, [])
+
+  const openReportPage = async () => {
+    window.open(REPORT_URL, '_blank')
+
+    if (userId) {
+      await logActivity(userId, 'threat_report_opened', 'threat_report', { url: REPORT_URL })
+    }
+  }
+
+  const recordReport = async (type: string) => {
+    if (!userId) {
+      window.open(REPORT_URL, '_blank')
+      return
+    }
+
+    // Record in threat_reports_v2
+    const { data, error } = await supabase
+      .from('threat_reports_v2')
+      .insert({
+        reporter_user_id: userId,
+        report_type: type,
+        raw_content: `${type} report from CSJ app`,
+        status: 'submitted',
+      })
+      .select()
+      .single()
+
+    if (!error && data) {
+      // Add score +3 for reporting
+      await addScoreEvent(userId, 3, `脅威通報（${type}）`, 'threat')
+      await recalcUserScore(userId)
+      await logActivity(userId, 'threat_reported', 'threat_report', { report_id: data.id, type })
+      setReportCount(prev => prev + 1)
+    }
+
+    // Open external report page
+    window.open(REPORT_URL, '_blank')
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-xl font-bold">🚨 脅威通報</h1>
-      <p className="text-sm text-cyber-muted">不審なURL、メール、SMSなどを通報してください。AIが自動判定します。</p>
-
-      {/* Progress */}
-      <div className="flex gap-2">
-        {['type', 'detail', 'analysis', 'done'].map((s, i) => (
-          <div key={s} className={`flex-1 h-1 rounded-full ${
-            ['type', 'detail', 'analysis', 'done'].indexOf(step) >= i ? 'bg-cyber-red' : 'bg-cyber-border/30'
-          }`} />
-        ))}
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">🚨 脅威通報</h1>
+        {userId && reportCount > 0 && (
+          <span className="text-xs bg-cyber-glow/10 text-cyber-glow px-3 py-1 rounded-full">
+            通報実績: {reportCount}件
+          </span>
+        )}
       </div>
 
-      {step === 'type' && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <GlowCard hover={false}>
+        <p className="text-sm text-cyber-muted mb-4">
+          フィッシングURL、詐欺メール、危険SMS、偽サイトを通報してください。
+          通報はAIが一次判定し、脅威DBに蓄積されます。通報1件ごとに+3ptがスコアに加算されます。
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
           {reportTypes.map((rt) => (
-            <GlowCard
+            <button
               key={rt.value}
-              glowColor="red"
-              onClick={() => { setReportType(rt.value); setStep('detail') }}
-              className="text-center !p-4"
+              onClick={() => recordReport(rt.value)}
+              className="p-4 bg-cyber-bg/30 border border-cyber-border/30 rounded-xl hover:border-cyber-glow/30 hover:bg-cyber-glow/5 transition-all text-left"
             >
               <div className="text-2xl mb-2">{rt.icon}</div>
-              <p className="text-xs font-medium">{rt.label}</p>
-            </GlowCard>
+              <p className="text-sm font-medium">{rt.label}</p>
+              <p className="text-xs text-cyber-muted mt-0.5">{rt.desc}</p>
+              {userId && <p className="text-[10px] text-cyber-green mt-2">+3pt</p>}
+            </button>
           ))}
         </div>
-      )}
+      </GlowCard>
 
-      {step === 'detail' && (
-        <GlowCard hover={false}>
-          <h3 className="text-sm font-semibold mb-4">
-            {reportTypes.find(r => r.value === reportType)?.icon}{' '}
-            {reportTypes.find(r => r.value === reportType)?.label}の詳細
-          </h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs text-cyber-muted mb-1.5">
-                {reportType === 'email' ? 'メール送信元アドレス' :
-                 reportType === 'sms' ? 'SMS送信元番号' :
-                 reportType === 'url' || reportType === 'domain' ? 'URLまたはドメイン' : '対象の情報'}
-              </label>
-              <input
-                type="text"
-                value={targetValue}
-                onChange={(e) => setTargetValue(e.target.value)}
-                placeholder={reportType === 'url' ? 'https://suspicious-site.example.com' : reportType === 'email' ? 'suspicious@example.com' : ''}
-                className="w-full bg-cyber-bg/50 border border-cyber-border/50 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyber-red/50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-cyber-muted mb-1.5">詳細説明（任意）</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                placeholder="どのような経緯で受信したか、不審に思った理由など"
-                className="w-full bg-cyber-bg/50 border border-cyber-border/50 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyber-red/50 resize-none"
-              />
-            </div>
-            <div className="flex gap-3">
-              <CyberButton variant="ghost" onClick={() => setStep('type')}>← 戻る</CyberButton>
-              <CyberButton variant="danger" onClick={handleSubmit} disabled={!targetValue}>
-                🚨 通報する
-              </CyberButton>
-            </div>
-          </div>
+      {/* Direct link to full report system */}
+      <GlowCard hover={false} className="text-center !py-6">
+        <p className="text-sm text-cyber-muted mb-3">詳細な通報フォーム（スクショ添付・メール転送対応）</p>
+        <CyberButton size="lg" onClick={openReportPage}>
+          📝 詳細通報フォームを開く（外部ページ）
+        </CyberButton>
+      </GlowCard>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <GlowCard hover={false} className="text-center">
+          <p className="text-2xl font-bold text-cyber-glow">{reportCount}</p>
+          <p className="text-xs text-cyber-muted">あなたの通報数</p>
         </GlowCard>
-      )}
-
-      {step === 'analysis' && analyzing && (
-        <GlowCard hover={false} className="text-center !py-10">
-          <div className="w-16 h-16 mx-auto border-2 border-cyber-red/30 border-t-cyber-red rounded-full animate-spin mb-4" />
-          <p className="text-sm font-medium">AIが脅威を分析しています...</p>
-          <div className="mt-4 space-y-2 text-xs text-cyber-muted">
-            <p>✓ URLパターンを解析中</p>
-            <p>✓ 既知の脅威DBと照合中</p>
-            <p className="animate-pulse">⟳ リスクスコアを算出中</p>
-          </div>
+        <GlowCard hover={false} className="text-center">
+          <p className="text-2xl font-bold text-cyber-glow">+{reportCount * 3}</p>
+          <p className="text-xs text-cyber-muted">獲得ポイント</p>
         </GlowCard>
-      )}
+        <GlowCard hover={false} className="text-center">
+          <p className="text-2xl font-bold text-cyber-glow">AI</p>
+          <p className="text-xs text-cyber-muted">一次判定</p>
+        </GlowCard>
+      </div>
 
-      {step === 'done' && (
-        <>
-          <GlowCard hover={false} className="border-cyber-red/20">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold">AI分析結果</h3>
-              <span className="px-3 py-1 bg-cyber-red/10 text-cyber-red text-xs rounded-full font-medium">
-                リスク: 高
-              </span>
-            </div>
-            <div className="space-y-3">
-              <div className="p-3 bg-cyber-bg/30 rounded-lg">
-                <p className="text-xs text-cyber-muted">分類</p>
-                <p className="text-sm font-medium text-cyber-red">フィッシング（高確率）</p>
-              </div>
-              <div className="p-3 bg-cyber-bg/30 rounded-lg">
-                <p className="text-xs text-cyber-muted">対象</p>
-                <p className="text-sm font-mono">{targetValue}</p>
-              </div>
-              <div className="p-3 bg-cyber-bg/30 rounded-lg">
-                <p className="text-xs text-cyber-muted">AI判定</p>
-                <p className="text-sm">
-                  このURLは既知のフィッシングパターンに類似しています。
-                  正規サイトのドメインを模倣した偽サイトの可能性が高いです。
-                  リンクをクリックせず、個人情報を入力しないでください。
-                </p>
-              </div>
-            </div>
-          </GlowCard>
-
-          <GlowCard glowColor="green" hover={false}>
-            <p className="text-sm text-cyber-green">✓ 通報が完了しました。スコア +3 が付与されました。</p>
-            <p className="text-xs text-cyber-muted mt-1">この情報は脅威DBに登録され、他のユーザーの保護に貢献します。</p>
-          </GlowCard>
-
-          <div className="flex gap-3">
-            <CyberButton onClick={() => { setStep('type'); setTargetValue(''); setDescription('') }}>
-              別の脅威を通報
-            </CyberButton>
-            <CyberButton variant="secondary" onClick={() => window.location.href = '/threat/search'}>
-              脅威DBを検索
-            </CyberButton>
-          </div>
-        </>
+      {!userId && (
+        <GlowCard hover={false} className="border-yellow-500/20">
+          <p className="text-sm text-yellow-400">
+            <a href="/login" className="underline">ログイン</a>すると通報がスコアに反映され、通報履歴も記録されます。
+          </p>
+        </GlowCard>
       )}
     </div>
   )
