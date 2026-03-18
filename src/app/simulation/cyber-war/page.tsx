@@ -1,133 +1,155 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { addScoreEvent, recalcUserScore, logActivity } from '@/lib/db'
 import GlowCard from '@/components/common/GlowCard'
 import CyberButton from '@/components/common/CyberButton'
 
-const scenarios = [
-  { id: 'cw_japan', name: 'Japan Defense', difficulty: 1, desc: '日本のインフラを守るシナリオ', icon: '🇯🇵' },
-  { id: 'cw_global', name: 'Global Warfare', difficulty: 2, desc: '多国間サイバー戦争シナリオ', icon: '🌍' },
-  { id: 'cw_corp', name: 'Corporate Siege', difficulty: 3, desc: '企業への標的型攻撃対応', icon: '🏢' },
-]
-
-const events = [
-  { turn: 1, type: 'attack', text: '東京電力のSCADAシステムに不正アクセスの兆候を検出', options: ['ネットワーク遮断', '監視強化', 'ハニーポット設置'] },
-  { turn: 2, type: 'attack', text: '官公庁メールサーバーにフィッシング攻撃が集中', options: ['メールフィルタ強化', 'DMARC reject設定', '全職員に注意喚起'] },
-  { turn: 3, type: 'attack', text: 'DNS水飲み場攻撃で複数企業サイトが改ざん', options: ['DNSSECを有効化', 'CDNに切替', 'サイト一時停止'] },
-]
-
 export default function CyberWarPage() {
-  const [gameState, setGameState] = useState<'menu' | 'playing' | 'result'>('menu')
-  const [currentTurn, setCurrentTurn] = useState(0)
-  const [score, setScore] = useState(0)
-  const [decisions, setDecisions] = useState<string[]>([])
-  const [selectedScenario, setSelectedScenario] = useState<string>('')
+  const [playing, setPlaying] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [scored, setScored] = useState(false)
 
-  const handleDecision = (option: string) => {
-    const points = option.includes('設定') || option.includes('有効化') ? 15 : option.includes('強化') ? 12 : 8
-    setScore(prev => prev + points)
-    setDecisions(prev => [...prev, option])
-    if (currentTurn < events.length - 1) {
-      setCurrentTurn(prev => prev + 1)
-    } else {
-      setGameState('result')
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setUserId(user.id)
+    }
+    init()
+  }, [])
+
+  const startGame = async () => {
+    setPlaying(true)
+
+    if (userId) {
+      const { data } = await supabase
+        .from('simulation_sessions')
+        .insert({
+          user_id: userId,
+          simulation_type: 'cyber_war',
+          scenario_code: 'global_warfare',
+          difficulty_level: 1,
+          status: 'started',
+        })
+        .select()
+        .single()
+
+      if (data) setSessionId(data.id)
+      await logActivity(userId, 'simulation_started', 'cyber_war', { game: 'global_warfare' })
     }
   }
 
-  if (gameState === 'result') {
-    const maxScore = events.length * 15
-    const percent = Math.round((score / maxScore) * 100)
-    return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-xl font-bold">⚔️ 戦闘結果</h1>
-        <GlowCard hover={false} className="text-center !py-8">
-          <div className="text-5xl mb-4">{percent >= 80 ? '🏆' : percent >= 60 ? '⭐' : '💪'}</div>
-          <p className="text-2xl font-bold text-cyber-glow">{score}ポイント</p>
-          <p className="text-sm text-cyber-muted mt-2">
-            {percent >= 80 ? '素晴らしい防衛戦略です！' : percent >= 60 ? '良い判断でした。改善の余地もあります。' : '防衛スキルを磨きましょう。'}
-          </p>
-        </GlowCard>
-        <GlowCard hover={false}>
-          <h3 className="text-sm font-semibold mb-3">判断ログ</h3>
-          {events.map((ev, i) => (
-            <div key={i} className="flex items-center gap-3 p-2.5 border-b border-cyber-border/20 last:border-0">
-              <span className="text-xs text-cyber-muted">Turn {ev.turn}</span>
-              <span className="flex-1 text-sm">{decisions[i]}</span>
-            </div>
-          ))}
-        </GlowCard>
-        <CyberButton onClick={() => { setGameState('menu'); setCurrentTurn(0); setScore(0); setDecisions([]) }}>
-          メニューに戻る
-        </CyberButton>
-      </div>
-    )
+  const completeGame = async () => {
+    if (userId && !scored) {
+      if (sessionId) {
+        await supabase
+          .from('simulation_sessions')
+          .update({
+            status: 'completed',
+            score: 100,
+            completed_at: new Date().toISOString(),
+            learned_topics_json: ['cyber_strategy', 'national_defense', 'resource_management'],
+          })
+          .eq('id', sessionId)
+      }
+
+      await addScoreEvent(userId, 5, 'Cyber戦争ゲームプレイ完了', 'simulation')
+      await recalcUserScore(userId)
+      await logActivity(userId, 'simulation_completed', 'cyber_war', { session_id: sessionId })
+      setScored(true)
+    }
   }
 
-  if (gameState === 'playing') {
-    const ev = events[currentTurn]
+  if (!playing) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg font-bold">⚔️ Cyber戦争 — Turn {ev.turn}</h1>
-          <span className="text-sm text-cyber-glow font-mono">スコア: {score}</span>
-        </div>
-        <div className="w-full h-1.5 bg-cyber-bg rounded-full">
-          <div className="h-full bg-cyber-red rounded-full transition-all" style={{ width: `${((currentTurn + 1) / events.length) * 100}%` }} />
-        </div>
-        <GlowCard hover={false} className="border-cyber-red/20">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs px-2 py-0.5 bg-cyber-red/10 text-cyber-red rounded">🚨 攻撃検出</span>
-          </div>
-          <p className="text-base font-semibold mb-6">{ev.text}</p>
-          <p className="text-xs text-cyber-muted mb-3">対応を選択してください：</p>
-          <div className="space-y-3">
-            {ev.options.map((opt) => (
-              <button
-                key={opt}
-                onClick={() => handleDecision(opt)}
-                className="w-full text-left p-4 rounded-lg bg-cyber-bg/30 border border-cyber-border/30 hover:border-cyber-glow/30 hover:bg-cyber-glow/5 transition-all text-sm"
-              >
-                {opt}
-              </button>
-            ))}
+      <div className="max-w-4xl mx-auto space-y-6">
+        <h1 className="text-xl font-bold">⚔️ Cyber戦争シミュレーション</h1>
+
+        <GlowCard hover={false} className="text-center !py-8">
+          <div className="text-6xl mb-4">🌐</div>
+          <h2 className="text-2xl font-bold text-cyber-glow mb-2">CYBER SHIELD JAPAN</h2>
+          <p className="text-lg text-cyber-muted mb-1">: : GLOBAL WARFARE : :</p>
+          <p className="text-sm text-cyber-muted mt-4 max-w-lg mx-auto">
+            2030年—第三次世界大戦が勃発した。サイバー空間が主戦場となった世界で、
+            国家の指導者として100年間の戦略を決断せよ。
+          </p>
+          <p className="text-xs text-cyber-muted mt-2">
+            先制攻撃、ドローン戦、情報戦—生き残れるのは、あなたの判断次第。
+          </p>
+
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <CyberButton size="lg" onClick={startGame}>
+              ゲームを開始する
+            </CyberButton>
+            {userId && (
+              <p className="text-xs text-cyber-green">ログイン済み — プレイ結果がスコアに反映されます（+5pt）</p>
+            )}
+            {!userId && (
+              <p className="text-xs text-yellow-400">ログインするとプレイ結果がスコアに反映されます</p>
+            )}
           </div>
         </GlowCard>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <GlowCard hover={false}>
+            <h3 className="text-sm font-semibold mb-2">🎯 学べること</h3>
+            <ul className="text-xs text-cyber-muted space-y-1">
+              <li>• サイバー攻撃と防御の戦略的判断</li>
+              <li>• 国家レベルのセキュリティ資源管理</li>
+              <li>• 先制攻撃 vs 防御のトレードオフ</li>
+            </ul>
+          </GlowCard>
+          <GlowCard hover={false}>
+            <h3 className="text-sm font-semibold mb-2">🏆 スコア連携</h3>
+            <ul className="text-xs text-cyber-muted space-y-1">
+              <li>• ゲームプレイ完了: +5pt</li>
+              <li>• プレイ履歴がダッシュボードに表示</li>
+              <li>• 学習トピックが自動記録</li>
+            </ul>
+          </GlowCard>
+          <GlowCard hover={false}>
+            <h3 className="text-sm font-semibold mb-2">🌍 選択可能な国家</h3>
+            <ul className="text-xs text-cyber-muted space-y-1">
+              <li>• 🇺🇸 USA — AI・サイバー技術が強い</li>
+              <li>• 🇨🇳 China — ドローン量産能力</li>
+              <li>• 🇷🇺 Russia — 攻撃能力</li>
+              <li>• 🇯🇵 Japan — 防御技術</li>
+              <li>• 🇪🇺 EU — 経済力</li>
+            </ul>
+          </GlowCard>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <h1 className="text-xl font-bold">⚔️ Cyber戦争シミュレーション</h1>
-      <p className="text-sm text-cyber-muted">サイバー攻撃に対する防衛判断を学ぶ戦略シミュレーションゲーム</p>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {scenarios.map((s) => (
-          <GlowCard key={s.id} glowColor="red" onClick={() => { setSelectedScenario(s.id); setGameState('playing') }}>
-            <div className="text-center">
-              <div className="text-3xl mb-3">{s.icon}</div>
-              <p className="font-semibold text-sm">{s.name}</p>
-              <p className="text-xs text-cyber-muted mt-1">{s.desc}</p>
-              <div className="flex justify-center gap-1 mt-2">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className={`w-2 h-2 rounded-full ${i < s.difficulty ? 'bg-cyber-red' : 'bg-cyber-border/30'}`} />
-                ))}
-              </div>
-            </div>
-          </GlowCard>
-        ))}
+    <div className="max-w-6xl mx-auto space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold">⚔️ Global Warfare</h1>
+        <div className="flex gap-2">
+          {userId && !scored && (
+            <CyberButton size="sm" onClick={completeGame}>
+              プレイ完了（+5pt）
+            </CyberButton>
+          )}
+          {scored && (
+            <span className="text-xs text-cyber-green px-3 py-1.5 bg-cyber-green/10 rounded-lg">✓ +5pt 獲得済み</span>
+          )}
+          <CyberButton size="sm" variant="ghost" onClick={() => setPlaying(false)}>
+            ← 戻る
+          </CyberButton>
+        </div>
       </div>
 
-      <GlowCard hover={false}>
-        <h3 className="text-sm font-semibold mb-3">🏆 ランキング</h3>
-        <div className="space-y-2 text-sm">
-          {['CyberShield_Pro — 450pt', 'SecOps_Master — 380pt', 'DefenseFirst — 320pt'].map((r, i) => (
-            <div key={i} className="flex items-center gap-3 p-2 bg-cyber-bg/30 rounded">
-              <span className="text-cyber-glow font-bold">{i + 1}</span>
-              <span>{r}</span>
-            </div>
-          ))}
-        </div>
-      </GlowCard>
+      <div className="w-full rounded-xl overflow-hidden border border-cyber-border/50" style={{ height: 'calc(100vh - 160px)' }}>
+        <iframe
+          src="https://global-warfare.vercel.app/"
+          className="w-full h-full border-0"
+          allow="fullscreen"
+          title="Cyber Shield Japan: Global Warfare"
+        />
+      </div>
     </div>
   )
 }
