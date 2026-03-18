@@ -1,25 +1,39 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { getUserScore, getScoreEvents } from '@/lib/db'
 import GlowCard from '@/components/common/GlowCard'
 import ScoreRing from '@/components/common/ScoreRing'
 
-const categoryScores = [
-  { label: '認証/ID', score: 70, icon: '🔑' },
-  { label: 'メール防御', score: 45, icon: '✉️' },
-  { label: 'クラウド設定', score: 55, icon: '☁️' },
-  { label: '端末管理', score: 60, icon: '💻' },
-  { label: '通報/検知', score: 80, icon: '🚨' },
-  { label: '教育/訓練', score: 35, icon: '📚' },
-  { label: '対応体制', score: 50, icon: '🏗️' },
-]
+interface UserScore {
+  overall_score: number
+  email_security_score: number
+  cloud_security_score: number
+  identity_score: number
+  endpoint_score: number
+  awareness_score: number
+  incident_response_score: number
+  training_score: number
+}
 
-const recentEvents = [
-  { type: '自己診断完了', delta: '+5', time: '2時間前', module: 'assessment' },
-  { type: '学習レッスン完了', delta: '+2', time: '3時間前', module: 'learning' },
-  { type: '脅威通報', delta: '+3', time: '昨日', module: 'threat' },
-  { type: 'MFA未設定検出', delta: '-10', time: '3日前', module: 'assessment' },
-  { type: 'ペンテスト演習クリア', delta: '+5', time: '5日前', module: 'simulation' },
-]
+interface ScoreEvent {
+  id: string
+  delta: number
+  reason: string
+  category: string
+  created_at: string
+}
+
+const defaultScore: UserScore = {
+  overall_score: 0,
+  email_security_score: 0,
+  cloud_security_score: 0,
+  identity_score: 0,
+  endpoint_score: 0,
+  awareness_score: 0,
+  incident_response_score: 0,
+  training_score: 0,
+}
 
 const improvements = [
   { priority: 1, text: 'SPF/DKIM/DMARCを設定する', category: 'メール', impact: '+15' },
@@ -30,6 +44,52 @@ const improvements = [
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<'personal' | 'company'>('personal')
+  const [score, setScore] = useState<UserScore>(defaultScore)
+  const [events, setEvents] = useState<ScoreEvent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loggedIn, setLoggedIn] = useState(false)
+
+  useEffect(() => {
+    const loadData = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
+      setLoggedIn(true)
+
+      const userScore = await getUserScore(user.id)
+      if (userScore) setScore(userScore as UserScore)
+
+      const scoreEvents = await getScoreEvents(user.id, 10)
+      setEvents(scoreEvents as ScoreEvent[])
+
+      setLoading(false)
+    }
+    loadData()
+  }, [])
+
+  const categoryScores = [
+    { label: '認証/ID', score: score.identity_score, icon: '🔑' },
+    { label: 'メール防御', score: score.email_security_score, icon: '✉️' },
+    { label: 'クラウド設定', score: score.cloud_security_score, icon: '☁️' },
+    { label: '端末管理', score: score.endpoint_score, icon: '💻' },
+    { label: '通報/検知', score: score.awareness_score, icon: '🚨' },
+    { label: '教育/訓練', score: score.training_score, icon: '📚' },
+    { label: '対応体制', score: score.incident_response_score, icon: '🏗️' },
+  ]
+
+  const formatTime = (ts: string) => {
+    const d = new Date(ts)
+    const now = new Date()
+    const diff = now.getTime() - d.getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 60) return `${mins}分前`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}時間前`
+    const days = Math.floor(hours / 24)
+    return `${days}日前`
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -51,12 +111,26 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {!loggedIn && !loading && (
+        <GlowCard hover={false} className="border-yellow-500/20">
+          <p className="text-sm text-yellow-400">ログインするとスコアが記録・表示されます。<a href="/login" className="underline ml-1">ログイン →</a></p>
+        </GlowCard>
+      )}
+
       {/* Main Score */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <GlowCard className="md:col-span-1 flex flex-col items-center justify-center !py-8" hover={false}>
-          <ScoreRing score={62} size={140} />
-          <p className="text-lg font-bold mt-3">総合スコア</p>
-          <p className="text-xs text-cyber-muted">前月比 <span className="text-cyber-green">+5</span></p>
+          {loading ? (
+            <div className="w-12 h-12 border-2 border-cyber-glow/30 border-t-cyber-glow rounded-full animate-spin" />
+          ) : (
+            <>
+              <ScoreRing score={score.overall_score} size={140} />
+              <p className="text-lg font-bold mt-3">総合スコア</p>
+              <p className="text-xs text-cyber-muted">
+                {events.length > 0 ? `最終更新: ${formatTime(events[0]?.created_at)}` : '診断を受けてスコアを取得しましょう'}
+              </p>
+            </>
+          )}
         </GlowCard>
 
         <GlowCard className="md:col-span-2" hover={false}>
@@ -72,37 +146,27 @@ export default function DashboardPage() {
         </GlowCard>
       </div>
 
-      {/* Score History Bar Chart */}
-      <GlowCard hover={false}>
-        <h3 className="text-sm font-semibold mb-4">スコア推移</h3>
-        <div className="flex items-end gap-2 h-32">
-          {[38, 42, 45, 48, 50, 53, 55, 57, 58, 60, 61, 62].map((s, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div
-                className="w-full bg-cyber-glow/20 rounded-t border-t border-x border-cyber-glow/30 transition-all"
-                style={{ height: `${(s / 100) * 100}%` }}
-              />
-              <span className="text-[9px] text-cyber-muted">{i + 1}月</span>
-            </div>
-          ))}
-        </div>
-      </GlowCard>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Recent Events */}
+        {/* Recent Events from DB */}
         <GlowCard hover={false}>
           <h3 className="text-sm font-semibold mb-3">最近のスコア変動</h3>
-          <div className="space-y-2">
-            {recentEvents.map((ev, i) => (
-              <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-cyber-bg/30">
-                <span className={`text-xs font-mono font-bold ${ev.delta.startsWith('+') ? 'text-cyber-green' : 'text-cyber-red'}`}>
-                  {ev.delta}
-                </span>
-                <span className="flex-1 text-sm">{ev.type}</span>
-                <span className="text-[10px] text-cyber-muted">{ev.time}</span>
-              </div>
-            ))}
-          </div>
+          {events.length === 0 ? (
+            <p className="text-sm text-cyber-muted py-4 text-center">
+              まだスコア変動がありません。<br/>自己診断を受けてスコアを獲得しましょう。
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {events.map((ev) => (
+                <div key={ev.id} className="flex items-center gap-3 p-2 rounded-lg bg-cyber-bg/30">
+                  <span className={`text-xs font-mono font-bold ${ev.delta > 0 ? 'text-cyber-green' : 'text-cyber-red'}`}>
+                    {ev.delta > 0 ? '+' : ''}{ev.delta}
+                  </span>
+                  <span className="flex-1 text-sm">{ev.reason}</span>
+                  <span className="text-[10px] text-cyber-muted">{formatTime(ev.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </GlowCard>
 
         {/* Improvement Priorities */}
@@ -132,9 +196,11 @@ export default function DashboardPage() {
           <div>
             <h3 className="text-sm font-semibold text-cyber-glow mb-1">AIからの次の一手</h3>
             <p className="text-sm text-cyber-text">
-              現在の総合スコアは62です。特に弱いのはメール認証設定と教育/訓練です。
-              まずは「自社診断テスト」のメール設定項目を完了し、
-              その後に「AIクラウドセキュリティ」の基礎1-3を進めるのが最短です。
+              {score.overall_score === 0
+                ? 'まずは「自己診断テスト」を受けて、現在のセキュリティレベルを把握しましょう。診断完了でスコア+5ptが加算されます。'
+                : score.overall_score < 20
+                ? `現在の総合スコアは${score.overall_score}です。まずは「自社診断テスト」を完了してさらに+8pt獲得し、メール設定の改善に取り組みましょう。`
+                : `現在の総合スコアは${score.overall_score}です。学習コースでさらにスコアを伸ばし、脅威通報も活用していきましょう。`}
             </p>
           </div>
         </div>
