@@ -20,14 +20,12 @@ export async function fetchAssessmentQuestions(templateCode: string) {
   return { template, questions: questions || [] }
 }
 
-export async function createAssessmentSession(userId: string, templateId: string, type: string, orgId?: string) {
+export async function createAssessmentSession(userId: string, templateId: string) {
   const { data, error } = await supabase
     .from('assessment_sessions')
     .insert({
       user_id: userId,
       template_id: templateId,
-      assessment_type: type,
-      organization_id: orgId || null,
       status: 'in_progress',
     })
     .select()
@@ -44,18 +42,22 @@ export async function saveAssessmentAnswers(
   const rows = answers.map(a => ({
     session_id: sessionId,
     question_id: a.question_id,
-    answer_value: a.answer_value,
-    score: a.score,
+    answer_value_json: { value: a.answer_value },
+    score_impact: a.score,
   }))
 
   const { error } = await supabase.from('assessment_answers').insert(rows)
   if (error) console.error('saveAssessmentAnswers error:', error)
 }
 
-export async function completeAssessmentSession(sessionId: string, totalScore: number) {
+export async function completeAssessmentSession(sessionId: string, normalizedScore: number) {
   const { error } = await supabase
     .from('assessment_sessions')
-    .update({ status: 'completed', total_score: totalScore, completed_at: new Date().toISOString() })
+    .update({
+      status: 'completed',
+      normalized_score: normalizedScore,
+      completed_at: new Date().toISOString(),
+    })
     .eq('id', sessionId)
 
   if (error) console.error('completeAssessmentSession error:', error)
@@ -75,9 +77,10 @@ export async function addScoreEvent(
     user_id: userId,
     organization_id: orgId || null,
     score_target_type: targetType,
+    event_type: 'assessment',
+    score_category: category,
     delta,
     reason,
-    category,
   })
   if (error) console.error('addScoreEvent error:', error)
 }
