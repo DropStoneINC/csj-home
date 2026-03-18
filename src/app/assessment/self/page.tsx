@@ -114,7 +114,7 @@ export default function SelfAssessmentPage() {
     try {
       if (userId && templateId) {
         // 1. Create session
-        const session = await createAssessmentSession(userId, templateId, 'self')
+        const session = await createAssessmentSession(userId, templateId)
 
         if (session) {
           // 2. Save all answers
