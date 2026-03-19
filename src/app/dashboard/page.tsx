@@ -91,6 +91,8 @@ export default function DashboardPage() {
     return `${days}日前`
   }
 
+  const rankInfo = getRankInfo(score.overall_score)
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -123,28 +125,23 @@ export default function DashboardPage() {
           {loading ? (
             <div className="w-12 h-12 border-2 border-cyber-glow/30 border-t-cyber-glow rounded-full animate-spin" />
           ) : (
-            {(() => {
-              const info = getRankInfo(score.overall_score)
-              return (
-                <>
-                  <ScoreRing score={score.overall_score} size={140} />
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: info.rank.color + '20', color: info.rank.color, border: `1px solid ${info.rank.color}40` }}>
-                      {info.rank.icon} {info.rank.name}
-                    </span>
-                  </div>
-                  <div className="w-full max-w-[180px] mt-2">
-                    <div className="h-1.5 bg-cyber-bg/50 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${info.progress * 100}%`, backgroundColor: info.rank.color }} />
-                    </div>
-                    <p className="text-[10px] text-cyber-muted text-center mt-1">次のランク: {info.nextThreshold.toLocaleString()}pt</p>
-                  </div>
-                  <p className="text-xs text-cyber-muted mt-1">
-                    {events.length > 0 ? `最終更新: ${formatTime(events[0]?.created_at)}` : '診断を受けてスコアを取得しましょう'}
-                  </p>
-                </>
-              )
-            })()}
+            <>
+              <ScoreRing score={score.overall_score} size={140} />
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: rankInfo.rank.color + '20', color: rankInfo.rank.color, border: `1px solid ${rankInfo.rank.color}40` }}>
+                  {rankInfo.rank.icon} {rankInfo.rank.name}
+                </span>
+              </div>
+              <div className="w-full max-w-[180px] mt-2">
+                <div className="h-1.5 bg-cyber-bg/50 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${rankInfo.progress * 100}%`, backgroundColor: rankInfo.rank.color }} />
+                </div>
+                <p className="text-[10px] text-cyber-muted text-center mt-1">次のランク: {rankInfo.nextThreshold.toLocaleString()}pt</p>
+              </div>
+              <p className="text-xs text-cyber-muted mt-1">
+                {events.length > 0 ? `最終更新: ${formatTime(events[0]?.created_at)}` : '診断を受けてスコアを取得しましょう'}
+              </p>
+            </>
           )}
         </GlowCard>
 
