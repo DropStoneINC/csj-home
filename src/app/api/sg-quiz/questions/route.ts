@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
         .eq("device_id", deviceId)
         .eq("correct", false);
       if (!wrongIds || wrongIds.length === 0) return NextResponse.json([]);
-      const ids = [...new Set(wrongIds.map(w => w.question_id))];
+      const ids = Array.from(new Set(wrongIds.map(w => w.question_id)));
       const { data } = await supabase.from("sg_questions").select("*").in("id", ids);
       return NextResponse.json(data || []);
     }
