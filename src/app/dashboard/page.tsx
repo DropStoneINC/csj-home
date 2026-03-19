@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getUserScore, getScoreEvents } from '@/lib/db'
 import GlowCard from '@/components/common/GlowCard'
-import ScoreRing from '@/components/common/ScoreRing'
+import ScoreRing, { getRankInfo } from '@/components/common/ScoreRing'
 
 interface UserScore {
   overall_score: number
@@ -123,13 +123,28 @@ export default function DashboardPage() {
           {loading ? (
             <div className="w-12 h-12 border-2 border-cyber-glow/30 border-t-cyber-glow rounded-full animate-spin" />
           ) : (
-            <>
-              <ScoreRing score={score.overall_score} size={140} />
-              <p className="text-lg font-bold mt-3">総合スコア</p>
-              <p className="text-xs text-cyber-muted">
-                {events.length > 0 ? `最終更新: ${formatTime(events[0]?.created_at)}` : '診断を受けてスコアを取得しましょう'}
-              </p>
-            </>
+            {(() => {
+              const info = getRankInfo(score.overall_score)
+              return (
+                <>
+                  <ScoreRing score={score.overall_score} size={140} />
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: info.rank.color + '20', color: info.rank.color, border: `1px solid ${info.rank.color}40` }}>
+                      {info.rank.icon} {info.rank.name}
+                    </span>
+                  </div>
+                  <div className="w-full max-w-[180px] mt-2">
+                    <div className="h-1.5 bg-cyber-bg/50 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${info.progress * 100}%`, backgroundColor: info.rank.color }} />
+                    </div>
+                    <p className="text-[10px] text-cyber-muted text-center mt-1">次のランク: {info.nextThreshold.toLocaleString()}pt</p>
+                  </div>
+                  <p className="text-xs text-cyber-muted mt-1">
+                    {events.length > 0 ? `最終更新: ${formatTime(events[0]?.created_at)}` : '診断を受けてスコアを取得しましょう'}
+                  </p>
+                </>
+              )
+            })()}
           )}
         </GlowCard>
 
@@ -138,7 +153,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {categoryScores.map((cat) => (
               <div key={cat.label} className="text-center">
-                <ScoreRing score={cat.score} size={70} strokeWidth={5} />
+                <ScoreRing score={cat.score} size={70} strokeWidth={5} compact />
                 <p className="text-xs text-cyber-muted mt-1">{cat.icon} {cat.label}</p>
               </div>
             ))}
@@ -147,20 +162,15 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Recent Events from DB */}
         <GlowCard hover={false}>
           <h3 className="text-sm font-semibold mb-3">最近のスコア変動</h3>
           {events.length === 0 ? (
-            <p className="text-sm text-cyber-muted py-4 text-center">
-              まだスコア変動がありません。<br/>自己診断を受けてスコアを獲得しましょう。
-            </p>
+            <p className="text-sm text-cyber-muted py-4 text-center">まだスコア変動がありません。<br/>自己診断を受けてスコアを獲得しましょう。</p>
           ) : (
             <div className="space-y-2">
               {events.map((ev) => (
                 <div key={ev.id} className="flex items-center gap-3 p-2 rounded-lg bg-cyber-bg/30">
-                  <span className={`text-xs font-mono font-bold ${ev.delta > 0 ? 'text-cyber-green' : 'text-cyber-red'}`}>
-                    {ev.delta > 0 ? '+' : ''}{ev.delta}
-                  </span>
+                  <span className={`text-xs font-mono font-bold ${ev.delta > 0 ? 'text-cyber-green' : 'text-cyber-red'}`}>{ev.delta > 0 ? '+' : ''}{ev.delta}</span>
                   <span className="flex-1 text-sm">{ev.reason}</span>
                   <span className="text-[10px] text-cyber-muted">{formatTime(ev.created_at)}</span>
                 </div>
@@ -169,15 +179,12 @@ export default function DashboardPage() {
           )}
         </GlowCard>
 
-        {/* Improvement Priorities */}
         <GlowCard hover={false}>
           <h3 className="text-sm font-semibold mb-3">🎯 改善優先順位</h3>
           <div className="space-y-2">
             {improvements.map((item) => (
               <div key={item.priority} className="flex items-center gap-3 p-2.5 rounded-lg bg-cyber-bg/30 border border-cyber-border/20">
-                <div className="w-6 h-6 rounded-full bg-cyber-glow/10 border border-cyber-glow/30 flex items-center justify-center text-xs text-cyber-glow font-bold">
-                  {item.priority}
-                </div>
+                <div className="w-6 h-6 rounded-full bg-cyber-glow/10 border border-cyber-glow/30 flex items-center justify-center text-xs text-cyber-glow font-bold">{item.priority}</div>
                 <div className="flex-1">
                   <p className="text-sm">{item.text}</p>
                   <p className="text-[10px] text-cyber-muted">{item.category}</p>
@@ -189,18 +196,21 @@ export default function DashboardPage() {
         </GlowCard>
       </div>
 
-      {/* AI Recommendation */}
       <GlowCard glowColor="cyan" hover={false} className="border-cyber-glow/20">
         <div className="flex items-start gap-3">
           <span className="text-2xl">🤖</span>
           <div>
             <h3 className="text-sm font-semibold text-cyber-glow mb-1">AIからの次の一手</h3>
             <p className="text-sm text-cyber-text">
-              {score.overall_score === 0
-                ? 'まずは「自己診断テスト」を受けて、現在のセキュリティレベルを把握しましょう。診断完了でスコア+5ptが加算されます。'
-                : score.overall_score < 20
-                ? `現在の総合スコアは${score.overall_score}です。まずは「自社診断テスト」を完了してさらに+8pt獲得し、メール設定の改善に取り組みましょう。`
-                : `現在の総合スコアは${score.overall_score}です。学習コースでさらにスコアを伸ばし、脅威通報も活用していきましょう。`}
+              {(() => {
+                const s = score.overall_score
+                const info = getRankInfo(s)
+                if (s === 0) return 'まずは「自己診断テスト」を受けて、最初のポイントを獲得しましょう。'
+                if (s < 10) return `あと${10 - s}ptでTraineeランクに昇格！自社診断も受けてみましょう。`
+                if (s < 100) return `現在${info.rank.name}ランク（${s}pt）。Guardianランク（100pt）を目指して学習コースに取り組みましょう。`
+                if (s < 300) return `${info.rank.name}ランク到達！Protectorランク（300pt）に向けて脅威通報や演習にも挑戦しましょう。`
+                return `${info.rank.name}ランク（${s.toLocaleString()}pt）！次のランクアップ（${info.nextThreshold.toLocaleString()}pt）を目指して継続的に活動しましょう。`
+              })()}
             </p>
           </div>
         </div>
