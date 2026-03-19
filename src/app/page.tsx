@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import GlowCard from '@/components/common/GlowCard'
-import ScoreRing from '@/components/common/ScoreRing'
+import ScoreRing, { getRankInfo } from '@/components/common/ScoreRing'
 import { supabase } from '@/lib/supabase'
 import { getUserScore, getScoreEvents } from '@/lib/db'
 
@@ -46,16 +46,21 @@ export default function HomePage() {
       const events = await getScoreEvents(user.id, 1)
       if (events.length > 0) setLastDelta(events[0].delta)
 
-      // Dynamic AI tip
+      // Dynamic AI tip based on rank
       const s = userScore?.overall_score || 0
+      const { rank } = getRankInfo(s)
       if (s === 0) {
-        setAiTip('まずは「自己診断テスト」を受けて、現在のセキュリティレベルを把握しましょう。')
-      } else if (s < 15) {
-        setAiTip('自社診断も完了して組織の課題を明確にしましょう。メール設定の改善が最優先です。')
-      } else if (s < 30) {
-        setAiTip('学習コースに取り組んでスコアを伸ばしましょう。クラウドセキュリティ基礎がおすすめです。')
+        setAiTip('まずは「自己診断テスト」を受けて、最初のポイントを獲得しましょう。')
+      } else if (s < 10) {
+        setAiTip(`あと${10 - s}ptでTraineeランクに昇格！自社診断も受けてみましょう。`)
+      } else if (s < 100) {
+        setAiTip(`現在${rank.name}ランク！Guardianランク（100pt）を目指して学習コースに取り組みましょう。`)
+      } else if (s < 300) {
+        setAiTip(`${rank.name}ランク到達！Protectorランク（300pt）に向けて脅威通報や演習にも挑戦しましょう。`)
+      } else if (s < 1000) {
+        setAiTip(`${rank.name}ランク！Commanderランク（1,000pt）到達で最高位に。実践力を高めていきましょう。`)
       } else {
-        setAiTip('順調にスコアが伸びています。脅威通報とペンテスト演習で実践力も高めていきましょう。')
+        setAiTip(`${rank.name}ランク到達！次のランクアップは${(Math.floor(s / 1000) + 1) * 1000}pt。継続的な活動がさらなる強化につながります。`)
       }
     }
     load()
@@ -79,12 +84,26 @@ export default function HomePage() {
             <h2 className="text-xl font-bold mb-1">
               {loggedIn ? `おかえりなさい${displayName ? `、${displayName}さん` : ''}` : 'Cyber Shield Agent へようこそ'}
             </h2>
-            <p className="text-cyber-muted text-sm mb-3">
+            <p className="text-cyber-muted text-sm mb-1">
               {loggedIn
-                ? <>現在の総合セキュリティスコアは <span className="text-cyber-glow font-bold">{score}</span> です。{lastDelta !== null && <> 前回 <span className={lastDelta > 0 ? 'text-cyber-green' : 'text-cyber-red'}>{lastDelta > 0 ? '+' : ''}{lastDelta}</span></>}</>
+                ? <>累計 <span className="text-cyber-glow font-bold">{score.toLocaleString()}</span> pt{lastDelta !== null && <> ／前回 <span className={lastDelta > 0 ? 'text-cyber-green' : 'text-cyber-red'}>{lastDelta > 0 ? '+' : ''}{lastDelta}</span></>}</>
                 : <><a href="/login" className="text-cyber-glow underline">ログイン</a>してスコアを記録しましょう</>
               }
             </p>
+            {loggedIn && (() => {
+              const info = getRankInfo(score)
+              return (
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: info.rank.color + '20', color: info.rank.color, border: `1px solid ${info.rank.color}40` }}>
+                    {info.rank.icon} {info.rank.name}
+                  </span>
+                  <div className="flex-1 max-w-[160px] h-1.5 bg-cyber-bg/50 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${info.progress * 100}%`, backgroundColor: info.rank.color }} />
+                  </div>
+                  <span className="text-[10px] text-cyber-muted">次 {info.nextThreshold.toLocaleString()}pt</span>
+                </div>
+              )
+            })()}
             <div className="bg-cyber-bg/50 rounded-lg border border-cyber-border/30 p-3">
               <p className="text-xs text-cyber-muted mb-1">🤖 AIからの提案</p>
               <p className="text-sm">{aiTip}</p>
