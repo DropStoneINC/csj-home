@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { Home, BookOpen, Timer, RotateCcw, ShieldCheck, Cloud, CloudOff, UserRound } from 'lucide-react'
 import { useSync, useSyncEngine } from '@/lib/sync'
 import Announcements, { type PublicAnnouncement } from './Announcements'
+import FeedbackButton from './FeedbackButton'
 import { supabaseEnabled } from '@/lib/supabase'
 
 const NAV = [
@@ -72,6 +73,11 @@ export default function AppShell({ children, announcements }: { children: React.
       <main className={clsx('mx-auto w-full max-w-4xl flex-1 px-4', focus ? 'py-4' : 'py-6 pb-28 sm:pb-10')}>
         {!focus && <Announcements items={announcements} />}
         {children}
+        {!focus && (
+          <footer className="mt-12 flex justify-center border-t border-line pt-6">
+            <FeedbackButton />
+          </footer>
+        )}
       </main>
       {!focus && (
         <nav

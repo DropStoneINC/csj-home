@@ -13,7 +13,7 @@ interface Summary {
   days: number
   minAttempts: number
   totalQuestions: number
-  summary: { users_7d: number; users_30d: number; answers_7d: number; answers_total: number; ai_asks_7d: number; open_reports: number }
+  summary: { users_7d: number; users_30d: number; answers_7d: number; answers_total: number; ai_asks_7d: number; open_reports: number; open_feedback?: number }
   daily: Daily[]
   categories: { id: CategoryId; name: string; questions: number; attempts: number; correct: number }[]
   hardest: QRow[]
@@ -125,7 +125,7 @@ export default function AdminDashboard() {
       {!data && <LoadState loading={loading} error={error} />}
       {data && (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
             <Stat label="利用者（7日）" value={data.summary.users_7d.toLocaleString()} />
             <Stat label="利用者（30日）" value={data.summary.users_30d.toLocaleString()} />
             <Stat label="解答数（7日）" value={data.summary.answers_7d.toLocaleString()} />
@@ -135,6 +135,13 @@ export default function AdminDashboard() {
               <Stat
                 label="未対応の誤り報告"
                 value={<span className={data.summary.open_reports ? 'text-ng' : ''}>{data.summary.open_reports}</span>}
+                sub="クリックで確認"
+              />
+            </Link>
+            <Link href="/admin/feedback" className="block">
+              <Stat
+                label="未対応のご意見"
+                value={<span className={data.summary.open_feedback ? 'text-ng' : ''}>{data.summary.open_feedback ?? '—'}</span>}
                 sub="クリックで確認"
               />
             </Link>
