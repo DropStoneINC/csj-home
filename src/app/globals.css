@@ -2,84 +2,93 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 色トークン（RGB 値）。ダークモードは OS 設定に従い、data-theme で上書きできる */
 :root {
-  --cyber-glow: #00f0ff;
-  --cyber-green: #00ff88;
-  --cyber-red: #ff3366;
+  --bg: 246 247 249;
+  --surface: 255 255 255;
+  --sunken: 238 240 244;
+  --line: 222 226 233;
+  --ink: 24 29 39;
+  --muted: 100 108 122;
+  --accent: 37 99 235;
+  --accent-soft: 232 240 254;
+  --accent-ink: 255 255 255;
+  --ok: 22 135 84;
+  --ok-soft: 229 246 237;
+  --ng: 205 49 58;
+  --ng-soft: 253 236 237;
+  --warn: 180 110 0;
+  --warn-soft: 254 244 222;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: 14 17 23;
+    --surface: 24 28 36;
+    --sunken: 18 21 28;
+    --line: 45 51 63;
+    --ink: 232 235 240;
+    --muted: 150 158 172;
+    --accent: 96 145 255;
+    --accent-soft: 29 41 66;
+    --accent-ink: 10 14 22;
+    --ok: 72 199 132;
+    --ok-soft: 20 48 36;
+    --ng: 244 108 114;
+    --ng-soft: 58 28 32;
+    --warn: 238 176 70;
+    --warn-soft: 56 43 20;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: 14 17 23;
+  --surface: 24 28 36;
+  --sunken: 18 21 28;
+  --line: 45 51 63;
+  --ink: 232 235 240;
+  --muted: 150 158 172;
+  --accent: 96 145 255;
+  --accent-soft: 29 41 66;
+  --accent-ink: 10 14 22;
+  --ok: 72 199 132;
+  --ok-soft: 20 48 36;
+  --ng: 244 108 114;
+  --ng-soft: 58 28 32;
+  --warn: 238 176 70;
+  --warn-soft: 56 43 20;
+  color-scheme: dark;
 }
 
 body {
-  background-color: #0a0e1a;
-  color: #e2e8f0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+  -webkit-tap-highlight-color: transparent;
+  font-feature-settings: 'palt' 0;
+  line-height: 1.7;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #111827;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e3a5f;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #00f0ff;
-}
-
-/* Cyber glow effects */
-.cyber-glow {
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.15), inset 0 0 15px rgba(0, 240, 255, 0.05);
-}
-
-.cyber-glow-green {
-  box-shadow: 0 0 15px rgba(0, 255, 136, 0.15), inset 0 0 15px rgba(0, 255, 136, 0.05);
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-accent-ink hover:bg-accent/90;
+  }
+  .btn-ghost {
+    @apply btn border border-line bg-surface text-ink hover:bg-sunken;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full bg-sunken px-2.5 py-0.5 text-xs font-medium text-muted;
+  }
+  .label {
+    @apply text-xs font-semibold uppercase tracking-wider text-muted;
+  }
 }
 
-.cyber-glow-red {
-  box-shadow: 0 0 15px rgba(255, 51, 102, 0.15), inset 0 0 15px rgba(255, 51, 102, 0.05);
-}
-
-.cyber-border {
-  border: 1px solid rgba(0, 240, 255, 0.2);
-}
-
-.cyber-gradient {
-  background: linear-gradient(135deg, #0a0e1a 0%, #111827 50%, #1a2332 100%);
-}
-
-/* Score ring animation */
-@keyframes scoreRing {
-  from { stroke-dashoffset: 283; }
-}
-
-.score-ring {
-  animation: scoreRing 1.5s ease-out forwards;
-}
-
-/* Grid pattern background */
-.grid-pattern {
-  background-image:
-    linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* Scan line effect */
-.scan-line::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.4), transparent);
-  animation: scanLine 3s linear infinite;
-}
-
-@keyframes scanLine {
-  0% { top: -2px; }
-  100% { top: 100%; }
-}
+.tabular { font-variant-numeric: tabular-nums; }
