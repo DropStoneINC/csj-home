@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
 import { LayoutDashboard, FileQuestion, Flag, Megaphone, LogOut, ShieldCheck, ExternalLink } from 'lucide-react'
-import { api } from './api'
+import { api, useApi } from './api'
 
 const NAV = [
   { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
@@ -14,7 +14,9 @@ const NAV = [
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  if (pathname === '/admin/login') return <>{children}</>
+  const isLogin = pathname === '/admin/login'
+  const me = useApi<{ email: string | null }>(isLogin ? null : '/api/admin/me')
+  if (isLogin) return <>{children}</>
   const active = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname.startsWith(href))
 
   async function logout() {
@@ -50,6 +52,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Link href="/" target="_blank" className="hidden shrink-0 items-center gap-1 text-sm text-muted hover:text-ink sm:flex">
             アプリを開く<ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </Link>
+          {me.data?.email && <span className="hidden max-w-[14rem] shrink-0 truncate text-xs text-muted lg:inline" title={me.data.email}>{me.data.email}</span>}
           <button onClick={logout} className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-muted hover:bg-sunken hover:text-ink" title="ログアウト">
             <LogOut className="h-4 w-4" aria-hidden />
             <span className="sr-only">ログアウト</span>

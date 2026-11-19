@@ -5,7 +5,11 @@ import { ADMIN_COOKIE, verifySession } from '@/lib/server/adminAuth'
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   const isApi = pathname.startsWith('/api/admin')
-  const isPublic = pathname === '/admin/login' || pathname === '/api/admin/login'
+  const isPublic =
+    pathname === '/admin/login' ||
+    pathname === '/api/admin/login' ||
+    pathname === '/api/admin/google/start' ||
+    pathname === '/api/admin/google/callback'
 
   // 状態を変える API はクロスサイトからの送信を拒否する（CSRF 対策。Cookie の SameSite=Strict と併用）
   if (isApi && req.method !== 'GET' && req.method !== 'HEAD') {

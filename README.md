@@ -11,6 +11,7 @@
 - **AI解説** — 問題ごとに Claude に質問できる（`/api/ask`）
 
 学習記録はログイン不要で、端末のブラウザ（localStorage）に保存されます。
+メールアドレスでログイン（Supabase Auth のマジックリンク）すると、Supabase の `study_progress` テーブルに保存され、複数の端末で同期されます（RLS で本人の行のみ読み書き可）。
 
 ## 運用者用管理画面（`/admin`）
 
@@ -27,13 +28,17 @@
 - **問題データ**: `src/data/questions/*.json` が元データ。管理画面で編集・追加した問題だけが DB の `questions` テーブルに入り、元データより優先されます。保存すると数秒でアプリに反映されます。DB に障害があっても元データだけで動きます。
   編集内容をリポジトリに取り込むときは、問題管理画面の「JSON」で分野ごとに書き出して `src/data/questions/` に置き、コミット後に管理画面で「元データに戻す」を押して上書きを外してください。
 - **利用ログ**: 端末ごとのランダムな匿名ID・解答の正誤・演習の完了・AI解説の質問回数だけを `events` テーブルに送ります（氏名・メールアドレス・IP アドレスは保存しません）。
-- **ログイン**: `ADMIN_PASSWORD` によるパスワードログイン（12時間の署名付き Cookie）。`/admin` と `/api/admin` は middleware で保護し、変更系の API はクロスサイトからの送信を拒否します。
+- **ログイン**: Google ログイン（OpenID Connect・PKCE）。`ADMIN_ALLOWED_DOMAINS`（既定 `dropstone.co.jp`）の Google Workspace アカウントだけが入れます（個人の Gmail は不可。例外は `ADMIN_ALLOWED_EMAILS` で個別に許可）。予備として `ADMIN_PASSWORD` を設定するとパスワードログインも使えます。セッションは12時間の署名付き Cookie。`/admin` と `/api/admin` は middleware で保護し、変更系の API はクロスサイトからの送信を拒否します。
 
 ### セットアップ
 
-1. Supabase でプロジェクトを作成し、SQL Editor で `supabase/migrations/20261119000000_admin.sql` を実行する（Supabase CLI なら `supabase db push`）
-2. Vercel の Environment Variables に `SUPABASE_URL`・`SUPABASE_SERVICE_ROLE_KEY`・`ADMIN_PASSWORD` を設定して再デプロイする
-3. `https://<ドメイン>/admin` を開いてログインする
+1. Supabase でプロジェクトを作成し、SQL Editor で `supabase/migrations/20261119000001_admin.sql` を実行する（Supabase CLI なら `supabase db push`）
+2. Google Cloud Console（dropstone.co.jp の組織）で OAuth クライアント ID を作成する
+   - OAuth 同意画面: ユーザーの種類「内部」（dropstone.co.jp のユーザーだけに限定される）
+   - 認証情報 → OAuth クライアント ID →「ウェブアプリケーション」
+   - 承認済みのリダイレクト URI: `https://app.cybershield.jp/api/admin/google/callback`（ローカル開発なら `http://localhost:3000/api/admin/google/callback` も）
+3. Vercel の Environment Variables に `SUPABASE_URL`・`SUPABASE_SERVICE_ROLE_KEY`・`GOOGLE_CLIENT_ID`・`GOOGLE_CLIENT_SECRET`・`ADMIN_SESSION_SECRET` を設定して再デプロイする
+4. `https://app.cybershield.jp/admin` を開き「Google でログイン」から dropstone.co.jp のアカウントでログインする
 
 環境変数が未設定の場合、学習アプリはこれまでどおり動作し、管理画面・誤り報告・利用ログだけが無効になります。
 
@@ -52,4 +57,4 @@ npm run dev
 
 ## デプロイ（Vercel）
 
-環境変数 `ANTHROPIC_API_KEY` を設定してください。未設定でもアプリは動作し、AI解説だけが「準備中」と表示されます。管理画面を使う場合は上記「運用者用管理画面」のセットアップも行ってください。
+環境変数 `ANTHROPIC_API_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定してください。未設定でもアプリは動作し、AI解説だけが「準備中」と表示されます。管理画面を使う場合は上記「運用者用管理画面」のセットアップも行ってください。
