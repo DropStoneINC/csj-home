@@ -66,7 +66,16 @@ function load(): Progress {
   return cache
 }
 
-function save(next: Progress) {
+/** 同期モジュール向け: ローカル保存のたびに呼ばれる */
+const changeHooks = new Set<(p: Progress) => void>()
+export function onProgressSaved(fn: (p: Progress) => void) {
+  changeHooks.add(fn)
+  return () => {
+    changeHooks.delete(fn)
+  }
+}
+
+function save(next: Progress, opts: { silent?: boolean } = {}) {
   cache = next
   try {
     window.localStorage.setItem(KEY, JSON.stringify(next))
@@ -74,7 +83,41 @@ function save(next: Progress) {
     // 容量超過・プライベートモード等。メモリ上の状態だけで続行する
   }
   listeners.forEach(l => l())
+  if (!opts.silent) changeHooks.forEach(h => h(next))
 }
+
+export function getProgress(): Progress {
+  return load()
+}
+
+/** サーバーから取り込んだ記録で置き換える（同期フックは呼ばない） */
+export function replaceProgress(next: Progress) {
+  save(next, { silent: true })
+}
+
+/** 2つの学習記録を統合する（端末間同期用） */
+export function mergeProgress(a: Progress, b: Partial<Progress>): Progress {
+  const answers = { ...a.answers }
+  for (const [id, r] of Object.entries(b.answers ?? {})) {
+    if (!answers[id] || r.at > answers[id].at) answers[id] = r
+  }
+  const sessions = new Map<string, SessionRecord>()
+  for (const s of [...a.sessions, ...(b.sessions ?? [])]) sessions.set(s.id, s)
+  const daily = { ...a.daily }
+  for (const [d, n] of Object.entries(b.daily ?? {})) daily[d] = Math.max(daily[d] ?? 0, n)
+  return {
+    answers,
+    bookmarks: Array.from(new Set([...a.bookmarks, ...(b.bookmarks ?? [])])),
+    sessions: Array.from(sessions.values()).sort((x, y) => y.at - x.at).slice(0, 200),
+    daily,
+    settings: {
+      examDate: a.settings.examDate ?? b.settings?.examDate ?? null,
+      dailyGoal: a.settings.dailyGoal !== EMPTY.settings.dailyGoal ? a.settings.dailyGoal : b.settings?.dailyGoal ?? a.settings.dailyGoal,
+    },
+  }
+}
+
+export const isEmptyProgress = (p: Progress) => !Object.keys(p.answers).length && !p.sessions.length && !p.bookmarks.length
 
 function subscribe(l: () => void) {
   listeners.add(l)

@@ -11,6 +11,7 @@
 - **AI解説** — 問題ごとに Claude に質問できる（`/api/ask`）
 
 学習記録はログイン不要で、端末のブラウザ（localStorage）に保存されます。
+メールアドレスでログイン（Supabase Auth のマジックリンク）すると、Supabase の `study_progress` テーブルに保存され、複数の端末で同期されます（RLS で本人の行のみ読み書き可）。
 
 ## 運用者用管理画面（`/admin`）
 
@@ -33,7 +34,7 @@
 
 ### セットアップ
 
-1. Supabase の SQL Editor で `supabase/migrations/20261119000000_admin.sql` を実行する（Supabase CLI なら `supabase db push`）
+1. Supabase の SQL Editor で `supabase/migrations/20261119000001_admin.sql` を実行する（Supabase CLI なら `supabase db push`）
 2. 運用者を登録する: Supabase の Authentication → Users でユーザーを作成し、SQL Editor で
    `insert into public.admin_users (email) values ('運用者のメールアドレス');` を実行する（メールアドレスは小文字）
 3. Vercel の Environment Variables に `NEXT_PUBLIC_SUPABASE_URL`・`NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定して再デプロイする
@@ -56,4 +57,4 @@ npm run dev
 
 ## デプロイ（Vercel）
 
-環境変数 `ANTHROPIC_API_KEY` を設定してください。未設定でもアプリは動作し、AI解説だけが「準備中」と表示されます。管理画面を使う場合は上記「運用者用管理画面」のセットアップも行ってください。
+環境変数 `ANTHROPIC_API_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定してください。未設定でもアプリは動作し、AI解説だけが「準備中」と表示されます。管理画面を使う場合は上記「運用者用管理画面」のセットアップも行ってください。
