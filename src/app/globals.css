@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 色トークン（RGB 値）。ダークモードは OS 設定に従い、data-theme で上書きできる */
+/* 色トークン（RGB 値）。アプリ内は OS 設定に関係なく薄グレーのライト表示。data-theme='dark' を付けたときだけダーク表示 */
 :root {
   --bg: 239 240 242;
   --surface: 255 255 255;
@@ -20,27 +20,6 @@
   --warn: 180 110 0;
   --warn-soft: 254 244 222;
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: 14 15 17;
-    --surface: 24 25 29;
-    --sunken: 18 19 22;
-    --line: 44 46 52;
-    --ink: 236 237 240;
-    --muted: 152 156 165;
-    --accent: 240 110 82;
-    --accent-soft: 58 30 24;
-    --accent-ink: 14 15 17;
-    --ok: 72 199 132;
-    --ok-soft: 20 48 36;
-    --ng: 244 114 168;
-    --ng-soft: 60 24 40;
-    --warn: 238 176 70;
-    --warn-soft: 56 43 20;
-    color-scheme: dark;
-  }
 }
 
 :root[data-theme='dark'] {
