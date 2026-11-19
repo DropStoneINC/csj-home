@@ -11,6 +11,7 @@
 - **AI解説** — 問題ごとに Claude に質問できる（`/api/ask`）
 
 学習記録はログイン不要で、端末のブラウザ（localStorage）に保存されます。
+メールアドレスでログイン（Supabase Auth のマジックリンク）すると、Supabase の `study_progress` テーブルに保存され、複数の端末で同期されます（RLS で本人の行のみ読み書き可）。
 
 ## 開発
 
@@ -27,4 +28,4 @@ npm run dev
 
 ## デプロイ（Vercel）
 
-環境変数 `ANTHROPIC_API_KEY` を設定してください。未設定でもアプリは動作し、AI解説だけが「準備中」と表示されます。
+環境変数 `ANTHROPIC_API_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定してください。未設定でもアプリは動作し、AI解説だけが「準備中」と表示されます。
