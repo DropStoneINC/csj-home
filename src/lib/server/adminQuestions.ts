@@ -1,5 +1,6 @@
 import 'server-only'
 import { revalidateTag } from 'next/cache'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { BASE_QUESTIONS, type Question } from '@/data/exam'
 import { BANK_TAG, fetchQuestionRows, rowToQuestion, type QuestionRow } from './bank'
 
@@ -15,8 +16,8 @@ export interface AdminQuestion extends Question {
 }
 
 /** 元データと DB を合わせた管理用の一覧（非公開の問題も含む） */
-export async function listAdminQuestions(): Promise<AdminQuestion[]> {
-  const rows = await fetchQuestionRows()
+export async function listAdminQuestions(db: SupabaseClient): Promise<AdminQuestion[]> {
+  const rows = await fetchQuestionRows(db)
   const byId = new Map(rows.map(r => [r.id, r]))
   const toAdmin = (q: Question, r: QuestionRow | undefined, source: Source): AdminQuestion => ({
     ...(r ? rowToQuestion(r) : q),

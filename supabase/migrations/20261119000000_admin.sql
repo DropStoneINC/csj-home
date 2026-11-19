@@ -1,6 +1,16 @@
 -- CSJ 資格ラボ 運用者用管理画面のスキーマ
--- すべてのテーブルは RLS を有効にし、ポリシーは作らない（anon / authenticated からは読み書き不可）。
--- 読み書きは Next.js のサーバー側から service_role キーでのみ行う。
+-- 権限の考え方:
+--   ・管理者 = admin_users に登録されたメールアドレスで Supabase Auth にログインし、メール確認済みのユーザー
+--   ・テーブルは RLS を有効にし、管理者だけが読み書きできるポリシーを付ける（anon は一切アクセス不可）
+--   ・学習者向けの読み取り・書き込みは、入力を検証する security definer 関数（public_* / log_* / submit_*）経由だけ
+
+-- ---------------------------------------------------------------
+-- 管理者
+-- ---------------------------------------------------------------
+create table if not exists public.admin_users (
+  email      text primary key check (email = lower(email)),
+  created_at timestamptz not null default now()
+);
 
 -- ---------------------------------------------------------------
 -- 問題の上書き・追加
@@ -80,6 +90,7 @@ alter table public.questions     enable row level security;
 alter table public.announcements enable row level security;
 alter table public.reports       enable row level security;
 alter table public.events        enable row level security;
+alter table public.admin_users   enable row level security;
 
 -- updated_at を自動更新
 create or replace function public.touch_updated_at() returns trigger
@@ -97,7 +108,7 @@ create trigger announcements_touch before update on public.announcements
   for each row execute function public.touch_updated_at();
 
 -- ---------------------------------------------------------------
--- 集計関数（管理画面のダッシュボード用。service_role からのみ実行可）
+-- 集計関数（管理画面のダッシュボード用）
 -- 日付の区切りは日本時間
 -- ---------------------------------------------------------------
 create or replace function public.admin_daily_stats(days int default 30)
@@ -151,9 +162,143 @@ language sql stable set search_path = '' as $$
     (select count(*) from public.reports where status = 'open');
 $$;
 
-revoke all on function public.admin_daily_stats(int)    from public, anon, authenticated;
-revoke all on function public.admin_question_stats(int) from public, anon, authenticated;
-revoke all on function public.admin_summary()           from public, anon, authenticated;
-grant execute on function public.admin_daily_stats(int)    to service_role;
-grant execute on function public.admin_question_stats(int) to service_role;
-grant execute on function public.admin_summary()           to service_role;
+
+-- ---------------------------------------------------------------
+-- 管理者判定とポリシー
+-- ---------------------------------------------------------------
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1
+    from public.admin_users a
+    join auth.users u on lower(u.email) = a.email
+    where u.id = auth.uid() and u.email_confirmed_at is not null
+  );
+$$;
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['questions', 'announcements', 'reports', 'events'] loop
+    execute format('drop policy if exists admin_all on public.%I', t);
+    execute format('create policy admin_all on public.%I for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()))', t);
+    execute format('revoke all on public.%I from anon', t);
+  end loop;
+end $$;
+
+drop policy if exists admin_read on public.admin_users;
+create policy admin_read on public.admin_users for select to authenticated using ((select public.is_admin()));
+revoke all on public.admin_users from anon;
+revoke insert, update, delete on public.admin_users from authenticated;
+
+-- 集計関数は呼び出したユーザーの権限で動く（管理者以外は RLS により 0 件になる）
+revoke all on function public.admin_daily_stats(int)    from public, anon;
+revoke all on function public.admin_question_stats(int) from public, anon;
+revoke all on function public.admin_summary()           from public, anon;
+grant execute on function public.admin_daily_stats(int)    to authenticated;
+grant execute on function public.admin_question_stats(int) to authenticated;
+grant execute on function public.admin_summary()           to authenticated;
+
+-- ---------------------------------------------------------------
+-- 学習者向けの関数（anon から呼べる。入力はここで検証する）
+-- ---------------------------------------------------------------
+
+-- 問題の上書き（運用メモは返さない）
+create or replace function public.public_question_overrides()
+returns table (id text, category text, level smallint, subject text, question text, choices jsonb, answer smallint,
+               explanation text, tags text[], status text, updated_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select id, category, level, subject, question, choices, answer, explanation, tags, status, updated_at
+  from public.questions order by id;
+$$;
+
+-- 公開中（または開始前）のお知らせ
+create or replace function public.public_announcements()
+returns table (id uuid, title text, body text, level text, starts_at timestamptz, ends_at timestamptz, updated_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select id, title, body, level, starts_at, ends_at, updated_at
+  from public.announcements
+  where published and (ends_at is null or ends_at > now())
+  order by created_at desc
+  limit 10;
+$$;
+
+-- 利用ログ（1回100件まで。時刻は過去1日〜未来5分に丸める）
+create or replace function public.log_events(p_client_id text, p_events jsonb)
+returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  e jsonb;
+  n integer := 0;
+  at timestamptz;
+begin
+  if p_client_id !~ '^[A-Za-z0-9-]{8,64}$' or jsonb_typeof(p_events) <> 'array' then
+    return 0;
+  end if;
+  for e in select value from jsonb_array_elements(p_events) limit 100 loop
+    begin
+      at := to_timestamp((e->>'at')::double precision / 1000);
+    exception when others then
+      at := null;
+    end;
+    if at is null or at < now() - interval '1 day' or at > now() + interval '5 minutes' then
+      at := now();
+    end if;
+    if e->>'type' = 'answer' and e->>'q' ~ '^[a-z]+-[0-9]{3}$' and jsonb_typeof(e->'ok') = 'boolean' then
+      insert into public.events (type, client_id, question_id, correct, created_at)
+      values ('answer', p_client_id, e->>'q', (e->>'ok')::boolean, at);
+      n := n + 1;
+    elsif e->>'type' = 'session' and e->>'mode' in ('category', 'random', 'smart', 'weak', 'bookmark', 'mock')
+          and jsonb_typeof(e->'total') = 'number' and jsonb_typeof(e->'score') = 'number' then
+      insert into public.events (type, client_id, mode, total, score, created_at)
+      values ('session', p_client_id, e->>'mode',
+              least(greatest((e->>'total')::numeric, 0), 200)::smallint,
+              least(greatest((e->>'score')::numeric, 0), least(greatest((e->>'total')::numeric, 0), 200))::smallint,
+              at);
+      n := n + 1;
+    end if;
+  end loop;
+  return n;
+end $$;
+
+create or replace function public.log_ai_ask(p_client_id text, p_question_id text)
+returns void
+language sql security definer set search_path = '' as $$
+  insert into public.events (type, client_id, question_id)
+  select 'ai_ask', p_client_id, p_question_id
+  where p_client_id ~ '^[A-Za-z0-9-]{8,64}$' and p_question_id ~ '^[a-z]+-[0-9]{3}$';
+$$;
+
+-- 誤り報告（同じ端末からは1時間に20件まで）
+create or replace function public.submit_report(p_question_id text, p_kind text, p_message text, p_selected smallint, p_client_id text)
+returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare
+  rid uuid;
+  cid text := case when p_client_id ~ '^[A-Za-z0-9-]{8,64}$' then p_client_id end;
+begin
+  if p_question_id !~ '^[a-z]+-[0-9]{3}$' then
+    raise exception 'invalid question id' using errcode = '22023';
+  end if;
+  if cid is not null and (select count(*) from public.reports where client_id = cid and created_at > now() - interval '1 hour') >= 20 then
+    raise exception 'too many reports' using errcode = 'P0429';
+  end if;
+  insert into public.reports (question_id, kind, message, selected, client_id)
+  values (p_question_id, p_kind, left(coalesce(p_message, ''), 1000),
+          case when p_selected between 0 and 3 then p_selected end, cid)
+  returning id into rid;
+  return rid;
+end $$;
+
+revoke all on function public.public_question_overrides() from public;
+revoke all on function public.public_announcements() from public;
+revoke all on function public.log_events(text, jsonb) from public;
+revoke all on function public.log_ai_ask(text, text) from public;
+revoke all on function public.submit_report(text, text, text, smallint, text) from public;
+grant execute on function public.public_question_overrides() to anon, authenticated;
+grant execute on function public.public_announcements() to anon, authenticated;
+grant execute on function public.log_events(text, jsonb) to anon, authenticated;
+grant execute on function public.log_ai_ask(text, text) to anon, authenticated;
+grant execute on function public.submit_report(text, text, text, smallint, text) to anon, authenticated;

@@ -1,7 +1,7 @@
 import { type NextRequest } from 'next/server'
 import { cleanClientId, clientIp, fail, json, rateLimiter, readJson } from '@/lib/server/api'
 import { getQuestionMap } from '@/lib/server/bank'
-import { getSupabase } from '@/lib/server/supabase'
+import { getPublicDb } from '@/lib/server/supabase'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +12,7 @@ const limited = rateLimiter(10, 60 * 60_000)
 
 /** 学習者からの問題の誤り報告 */
 export async function POST(req: NextRequest) {
-  const db = getSupabase()
+  const db = getPublicDb()
   if (!db) return fail('現在、報告を受け付けていません。', 503)
   if (limited(clientIp(req))) return fail('報告が集中しています。時間をおいてからお試しください。', 429)
 
@@ -26,7 +26,14 @@ export async function POST(req: NextRequest) {
   if (kind === 'other' && !message) return fail('内容を入力してください。', 400)
   const selected = typeof body?.selected === 'number' && [0, 1, 2, 3].includes(body.selected) ? body.selected : null
 
-  const { error } = await db.from('reports').insert({ question_id, kind, message, selected, client_id: cleanClientId(body?.clientId) })
+  const { error } = await db.rpc('submit_report', {
+    p_question_id: question_id,
+    p_kind: kind,
+    p_message: message,
+    p_selected: selected,
+    p_client_id: cleanClientId(body?.clientId),
+  })
+  if (error?.code === 'P0429') return fail('報告が集中しています。時間をおいてからお試しください。', 429)
   if (error) {
     console.error('report insert failed', error.message)
     return fail('送信に失敗しました。時間をおいてからお試しください。', 500)

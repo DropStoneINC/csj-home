@@ -12,12 +12,12 @@ export const fetchCache = 'force-no-store'
  * 管理画面での編集をリポジトリに取り込むときに使う。非公開にした問題は含めない。
  */
 export async function GET(req: NextRequest) {
-  const { res } = withDb()
+  const { db, res } = withDb()
   if (res) return res
   const category = req.nextUrl.searchParams.get('category')
   if (!CATEGORIES.some(c => c.id === category)) return fail('分野を指定してください。', 400)
 
-  const list = await listAdminQuestions()
+  const list = await listAdminQuestions(db)
   const out = list
     .filter(q => q.category === category && q.status === 'published')
     .map(q => ({

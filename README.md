@@ -23,17 +23,21 @@
 
 ### しくみ
 
-- データは Supabase（Postgres）に保存し、Next.js のサーバー側から `service_role` キーでのみ読み書きします。全テーブルで RLS を有効にし、ポリシーは作っていない（公開キーからは読み書きできない）。
+- データは Supabase（Postgres）に保存します。サーバーの秘密鍵（service_role）は使わず、公開キーと RLS だけで権限を守ります。
+  - **運用者**: Supabase Auth（メールアドレス＋パスワード）でログインし、`admin_users` テーブルにメールアドレスが登録されているユーザー。管理用テーブルは RLS で運用者だけが読み書きできます。
+  - **学習者**: テーブルには直接アクセスできず、入力を検証する DB 関数（`public_question_overrides` / `public_announcements` / `log_events` / `log_ai_ask` / `submit_report`）だけを呼べます。
 - **問題データ**: `src/data/questions/*.json` が元データ。管理画面で編集・追加した問題だけが DB の `questions` テーブルに入り、元データより優先されます。保存すると数秒でアプリに反映されます。DB に障害があっても元データだけで動きます。
   編集内容をリポジトリに取り込むときは、問題管理画面の「JSON」で分野ごとに書き出して `src/data/questions/` に置き、コミット後に管理画面で「元データに戻す」を押して上書きを外してください。
 - **利用ログ**: 端末ごとのランダムな匿名ID・解答の正誤・演習の完了・AI解説の質問回数だけを `events` テーブルに送ります（氏名・メールアドレス・IP アドレスは保存しません）。
-- **ログイン**: `ADMIN_PASSWORD` によるパスワードログイン（12時間の署名付き Cookie）。`/admin` と `/api/admin` は middleware で保護し、変更系の API はクロスサイトからの送信を拒否します。
+- `/admin` と `/api/admin` は middleware でログインと運用者権限を確認し、変更系の API はクロスサイトからの送信を拒否します。
 
 ### セットアップ
 
-1. Supabase でプロジェクトを作成し、SQL Editor で `supabase/migrations/20261119000000_admin.sql` を実行する（Supabase CLI なら `supabase db push`）
-2. Vercel の Environment Variables に `SUPABASE_URL`・`SUPABASE_SERVICE_ROLE_KEY`・`ADMIN_PASSWORD` を設定して再デプロイする
-3. `https://<ドメイン>/admin` を開いてログインする
+1. Supabase の SQL Editor で `supabase/migrations/20261119000000_admin.sql` を実行する（Supabase CLI なら `supabase db push`）
+2. 運用者を登録する: Supabase の Authentication → Users でユーザーを作成し、SQL Editor で
+   `insert into public.admin_users (email) values ('運用者のメールアドレス');` を実行する（メールアドレスは小文字）
+3. Vercel の Environment Variables に `NEXT_PUBLIC_SUPABASE_URL`・`NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定して再デプロイする
+4. `https://<ドメイン>/admin` を開いてログインする。パスワードは管理画面右上の「アカウント」から変更できます
 
 環境変数が未設定の場合、学習アプリはこれまでどおり動作し、管理画面・誤り報告・利用ログだけが無効になります。
 

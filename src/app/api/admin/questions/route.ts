@@ -13,7 +13,7 @@ export async function GET() {
   if (res) return res
   try {
     const [list, stats, reports] = await Promise.all([
-      listAdminQuestions(),
+      listAdminQuestions(db),
       db.rpc('admin_question_stats', { since_days: 90 }),
       db.from('reports').select('question_id').eq('status', 'open').limit(5000),
     ])
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   // ID の競合時は採番し直す
   for (let attempt = 0; attempt < 3; attempt++) {
-    const list = await listAdminQuestions()
+    const list = await listAdminQuestions(db)
     const id = nextId(parsed.value.category, list.map(q => q.id))
     if (!id) return fail('この分野の問題 ID が上限（999）に達しました。', 409)
     const { error } = await db.from('questions').insert({ id, ...parsed.value, status, note })

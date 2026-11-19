@@ -1,25 +1,44 @@
 import 'server-only'
+import { cookies } from 'next/headers'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { SUPABASE_ANON_KEY, SUPABASE_URL, supabaseConfigured } from '@/lib/supabaseEnv'
 
-let client: SupabaseClient | null | undefined
+export { supabaseConfigured }
+
+let publicClient: SupabaseClient | null | undefined
 
 /**
- * service_role キーで接続する Supabase クライアント。サーバー側専用（RLS をバイパスする）。
- * 環境変数が未設定なら null を返し、呼び出し側は機能を無効として扱う。
+ * 公開キー（anon）で接続するクライアント。ログイン情報を持たず、学習者向けの関数
+ * （public_* / log_* / submit_*）だけを呼ぶ。未設定なら null。
  * API ルートでは fetchCache = 'force-no-store' を指定して Next.js のデータキャッシュに載せないこと
  * （unstable_cache の中では Next.js が自動で no-store にする）。
  */
-export function getSupabase(): SupabaseClient | null {
-  if (client !== undefined) return client
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  client =
-    url && key
-      ? createClient(url, key, {
-          auth: { persistSession: false, autoRefreshToken: false },
-        })
-      : null
-  return client
+export function getPublicDb(): SupabaseClient | null {
+  if (publicClient !== undefined) return publicClient
+  publicClient = supabaseConfigured()
+    ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, { auth: { persistSession: false, autoRefreshToken: false } })
+    : null
+  return publicClient
 }
 
-export const supabaseConfigured = () => !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+/**
+ * ログイン中の運用者として接続するクライアント（Route Handler 用）。
+ * 権限は DB の RLS（is_admin()）で判定される。未設定なら null。
+ */
+export function getAdminDb(): SupabaseClient | null {
+  if (!supabaseConfigured()) return null
+  const store = cookies()
+  return createServerClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+    cookies: {
+      getAll: () => store.getAll(),
+      setAll: list => {
+        try {
+          list.forEach(({ name, value, options }) => store.set(name, value, options))
+        } catch {
+          // 書き込めない文脈では middleware が更新する
+        }
+      },
+    },
+  })
+}

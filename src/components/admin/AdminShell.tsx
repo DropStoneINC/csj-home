@@ -2,8 +2,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
-import { LayoutDashboard, FileQuestion, Flag, Megaphone, LogOut, ShieldCheck, ExternalLink } from 'lucide-react'
-import { api } from './api'
+import { LayoutDashboard, FileQuestion, Flag, Megaphone, LogOut, ShieldCheck, ExternalLink, UserRound } from 'lucide-react'
+import { getBrowserSupabase } from '@/lib/supabaseBrowser'
 
 const NAV = [
   { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
@@ -18,7 +18,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const active = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname.startsWith(href))
 
   async function logout() {
-    await api('/api/admin/logout', { method: 'POST' }).catch(() => {})
+    await getBrowserSupabase()?.auth.signOut().catch(() => {})
     window.location.href = '/admin/login'
   }
 
@@ -50,6 +50,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Link href="/" target="_blank" className="hidden shrink-0 items-center gap-1 text-sm text-muted hover:text-ink sm:flex">
             アプリを開く<ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </Link>
+          <Link href="/admin/account" className={clsx('shrink-0 rounded-lg p-1.5', pathname === '/admin/account' ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-sunken hover:text-ink')} title="アカウント">
+            <UserRound className="h-4 w-4" aria-hidden />
+            <span className="sr-only">アカウント</span>
+          </Link>
           <button onClick={logout} className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-muted hover:bg-sunken hover:text-ink" title="ログアウト">
             <LogOut className="h-4 w-4" aria-hidden />
             <span className="sr-only">ログアウト</span>
@@ -69,7 +73,7 @@ export function LoadState({ loading, error }: { loading: boolean; error: { messa
         <h2 className="font-bold">データベースが未設定です</h2>
         <p className="mt-2 text-sm text-muted">{error.message}</p>
         <p className="mt-2 text-sm text-muted">
-          手順は README の「運用者用管理画面」を参照してください（<code className="rounded bg-sunken px-1">supabase/migrations</code> の SQL を実行してから環境変数を設定します）。
+          手順は README の「運用者用管理画面」を参照してください。
         </p>
       </div>
     )

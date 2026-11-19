@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server'
 import { BASE_QUESTIONS } from '@/data/exam'
 import { cleanClientId, clientIp, rateLimiter } from '@/lib/server/api'
 import { getQuestionMap } from '@/lib/server/bank'
-import { getSupabase } from '@/lib/server/supabase'
+import { getPublicDb } from '@/lib/server/supabase'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,7 +18,7 @@ const noContent = () => new Response(null, { status: 204 })
  * 失敗しても学習には影響させないため、エラーでも 204 を返す。
  */
 export async function POST(req: NextRequest) {
-  const db = getSupabase()
+  const db = getPublicDb()
   if (!db || limited(clientIp(req))) return noContent()
 
   let body: { clientId?: unknown; events?: unknown }
@@ -31,25 +31,16 @@ export async function POST(req: NextRequest) {
   if (!client_id || !Array.isArray(body.events)) return noContent()
 
   const map = await getQuestionMap().catch(() => Object.fromEntries(BASE_QUESTIONS.map(q => [q.id, q])))
-  const now = Date.now()
-  type Row = { type: string; client_id: string; created_at: string; question_id?: string; correct?: boolean; mode?: string; total?: number; score?: number }
-  const rows = body.events.slice(0, MAX_BATCH).flatMap((raw): Row[] => {
+  // 問題として存在する ID だけを送る（時刻の丸めなどの検証は DB の log_events でも行う）
+  const events = body.events.slice(0, MAX_BATCH).filter(raw => {
     const e = (raw ?? {}) as Record<string, unknown>
-    // 端末の時計を信用しすぎない（過去1日〜未来5分の範囲だけ採用）
-    const at = typeof e.at === 'number' && e.at > now - 86_400_000 && e.at < now + 300_000 ? new Date(e.at).toISOString() : new Date(now).toISOString()
-    if (e.type === 'answer' && typeof e.q === 'string' && map[e.q] && typeof e.ok === 'boolean') {
-      return [{ type: 'answer', client_id, question_id: e.q, correct: e.ok, created_at: at }]
-    }
-    if (e.type === 'session' && typeof e.mode === 'string' && MODES.includes(e.mode)) {
-      const total = Math.min(Math.max(Math.round(Number(e.total) || 0), 0), 200)
-      const score = Math.min(Math.max(Math.round(Number(e.score) || 0), 0), total)
-      return [{ type: 'session', client_id, mode: e.mode, total, score, created_at: at }]
-    }
-    return []
+    if (e.type === 'answer') return typeof e.q === 'string' && !!map[e.q] && typeof e.ok === 'boolean'
+    if (e.type === 'session') return typeof e.mode === 'string' && MODES.includes(e.mode) && typeof e.total === 'number' && typeof e.score === 'number'
+    return false
   })
-  if (rows.length) {
-    const { error } = await db.from('events').insert(rows)
-    if (error) console.error('events insert failed', error.message)
+  if (events.length) {
+    const { error } = await db.rpc('log_events', { p_client_id: client_id, p_events: events })
+    if (error) console.error('log_events failed', error.message)
   }
   return noContent()
 }

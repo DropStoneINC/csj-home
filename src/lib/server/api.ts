@@ -1,15 +1,15 @@
 import 'server-only'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getSupabase } from './supabase'
+import { getAdminDb } from './supabase'
 
 export const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { 'Cache-Control': 'no-store' } })
 export const fail = (error: string, status = 400, extra?: Record<string, unknown>) => json({ error, ...extra }, status)
 
-/** DB が未設定なら 503 を返す */
+/** ログイン中の運用者として DB に接続する。未設定なら 503 を返す */
 export function withDb(): { db: SupabaseClient; res?: never } | { db?: never; res: NextResponse } {
-  const db = getSupabase()
-  if (!db) return { res: fail('Supabase が未設定です。環境変数 SUPABASE_URL と SUPABASE_SERVICE_ROLE_KEY を設定してください。', 503, { code: 'not_configured' }) }
+  const db = getAdminDb()
+  if (!db) return { res: fail('Supabase が未設定です。環境変数 NEXT_PUBLIC_SUPABASE_URL と NEXT_PUBLIC_SUPABASE_ANON_KEY を設定してください。', 503, { code: 'not_configured' }) }
   return { db }
 }
 

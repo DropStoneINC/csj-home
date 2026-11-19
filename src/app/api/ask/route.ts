@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { categoryOf, EXAM } from '@/data/exam'
 import { getQuestionMap } from '@/lib/server/bank'
-import { getSupabase } from '@/lib/server/supabase'
+import { getPublicDb } from '@/lib/server/supabase'
 import { cleanClientId } from '@/lib/server/api'
 
 export const runtime = 'nodejs'
@@ -83,9 +83,9 @@ export async function POST(req: NextRequest) {
 
   // 利用状況の集計用に匿名で記録する（失敗しても回答は続ける）
   const clientId = cleanClientId(body.clientId)
-  const db = getSupabase()
+  const db = getPublicDb()
   if (db && clientId) {
-    const { error } = await db.from('events').insert({ type: 'ai_ask', client_id: clientId, question_id: q.id })
+    const { error } = await db.rpc('log_ai_ask', { p_client_id: clientId, p_question_id: q.id })
     if (error) console.error('ai_ask log failed', error.message)
   }
 

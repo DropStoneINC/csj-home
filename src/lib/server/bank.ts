@@ -1,7 +1,8 @@
 import 'server-only'
 import { unstable_cache } from 'next/cache'
 import { BASE_QUESTIONS, mergeQuestions, type Question, type QuestionOverrides } from '@/data/exam'
-import { getSupabase } from './supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { getPublicDb } from './supabase'
 
 export const BANK_TAG = 'question-bank'
 export const ANNOUNCEMENTS_TAG = 'announcements'
@@ -41,10 +42,8 @@ export function rowToQuestion(r: QuestionRow): Question {
   }
 }
 
-/** DB の上書きをそのまま全件取得する（キャッシュなし。管理画面用） */
-export async function fetchQuestionRows(): Promise<QuestionRow[]> {
-  const db = getSupabase()
-  if (!db) return []
+/** DB の上書きをそのまま全件取得する（キャッシュなし。管理画面用。運用者の接続を渡す） */
+export async function fetchQuestionRows(db: SupabaseClient): Promise<QuestionRow[]> {
   const { data, error } = await db.from('questions').select(QUESTION_COLUMNS).order('id')
   if (error) throw new Error(`questions: ${error.message}`)
   return (data ?? []) as QuestionRow[]
@@ -53,9 +52,12 @@ export async function fetchQuestionRows(): Promise<QuestionRow[]> {
 /** 学習者向けの上書き情報。DB 障害時は元データだけで動くよう null を返す */
 export const getOverrides = unstable_cache(
   async (): Promise<QuestionOverrides | null> => {
-    if (!getSupabase()) return null
+    const db = getPublicDb()
+    if (!db) return null
     try {
-      const rows = await fetchQuestionRows()
+      const { data, error } = await db.rpc('public_question_overrides')
+      if (error) throw new Error(error.message)
+      const rows = (data ?? []) as QuestionRow[]
       if (!rows.length) return null
       const version = rows.reduce((v, r) => (r.updated_at > v ? r.updated_at : v), '') + `#${rows.length}`
       return {
@@ -80,21 +82,16 @@ export async function getQuestionMap(): Promise<Record<string, Question>> {
 }
 
 /** 公開中（または開始前）のお知らせ。表示期間の判定は端末側でも行う */
+export type PublicAnnouncementRow = Pick<Announcement, 'id' | 'title' | 'body' | 'level' | 'starts_at' | 'ends_at' | 'updated_at'>
+
 export const getActiveAnnouncements = unstable_cache(
-  async (): Promise<Announcement[]> => {
-    const db = getSupabase()
+  async (): Promise<PublicAnnouncementRow[]> => {
+    const db = getPublicDb()
     if (!db) return []
     try {
-      const now = new Date().toISOString()
-      const { data, error } = await db
-        .from('announcements')
-        .select('*')
-        .eq('published', true)
-        .or(`ends_at.is.null,ends_at.gt.${now}`)
-        .order('created_at', { ascending: false })
-        .limit(10)
+      const { data, error } = await db.rpc('public_announcements')
       if (error) throw error
-      return (data ?? []) as Announcement[]
+      return (data ?? []) as PublicAnnouncementRow[]
     } catch (e) {
       console.error('getActiveAnnouncements failed', e)
       return []
