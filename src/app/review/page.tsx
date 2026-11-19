@@ -126,7 +126,9 @@ export default function ReviewPage() {
       )}
 
       <section className="border-t border-line pt-6">
-        <p className="text-xs text-muted">学習記録はこの端末のブラウザに保存されています。ブラウザのデータを消去すると記録も消えます。</p>
+        <p className="text-xs text-muted">
+          学習記録はこの端末のブラウザに保存されています。<Link href="/account" className="text-accent hover:underline">ログイン</Link>すると、クラウドに保存して複数の端末で共有できます。
+        </p>
         <button
           onClick={() => confirm('学習記録（解答履歴・ブックマーク・模試結果）をすべて消去します。よろしいですか？') && resetProgress()}
           className="mt-3 inline-flex items-center gap-1.5 text-sm text-ng hover:underline"

@@ -2,7 +2,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
-import { Home, BookOpen, Timer, RotateCcw, ShieldCheck } from 'lucide-react'
+import { Home, BookOpen, Timer, RotateCcw, ShieldCheck, Cloud, CloudOff, UserRound } from 'lucide-react'
+import { useSync, useSyncEngine } from '@/lib/sync'
+import { supabaseEnabled } from '@/lib/supabase'
 
 const NAV = [
   { href: '/', label: 'ホーム', icon: Home },
@@ -13,6 +15,8 @@ const NAV = [
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  useSyncEngine()
+  const sync = useSync()
   // 問題を解いている間はナビを隠して集中できるようにする
   const focus = pathname.startsWith('/quiz')
   const active = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href))
@@ -26,6 +30,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <ShieldCheck className="h-6 w-6 text-accent" aria-hidden />
               <span>CSJ 資格ラボ</span>
             </Link>
+            <div className="flex items-center gap-1">
             <nav className="hidden gap-1 sm:flex" aria-label="メイン">
               {NAV.map(n => (
                 <Link
@@ -40,6 +45,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
               ))}
             </nav>
+            {supabaseEnabled && sync.ready && (
+              <Link
+                href="/account"
+                className={clsx(
+                  'ml-1 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors',
+                  active('/account') ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink',
+                )}
+                title={sync.session ? `${sync.session.user.email} でログイン中` : 'ログインして端末間で同期'}
+              >
+                {sync.session ? (
+                  sync.status === 'error' ? <CloudOff className="h-4 w-4 text-ng" aria-hidden /> : <Cloud className="h-4 w-4 text-ok" aria-hidden />
+                ) : (
+                  <UserRound className="h-4 w-4" aria-hidden />
+                )}
+                <span>{sync.session ? '同期中' : 'ログイン'}</span>
+              </Link>
+            )}
+            </div>
           </div>
         </header>
       )}
