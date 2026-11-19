@@ -2,13 +2,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
-import { LayoutDashboard, FileQuestion, Flag, Megaphone, LogOut, ShieldCheck, ExternalLink, UserRound } from 'lucide-react'
+import { LayoutDashboard, FileQuestion, Flag, Megaphone, LogOut, ShieldCheck, ExternalLink, UserRound, MessageSquarePlus } from 'lucide-react'
 import { getBrowserSupabase } from '@/lib/supabaseBrowser'
 
 const NAV = [
   { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
   { href: '/admin/questions', label: '問題管理', icon: FileQuestion },
   { href: '/admin/reports', label: '誤り報告', icon: Flag },
+  { href: '/admin/feedback', label: 'ご意見', icon: MessageSquarePlus },
   { href: '/admin/announcements', label: 'お知らせ', icon: Megaphone },
 ]
 
