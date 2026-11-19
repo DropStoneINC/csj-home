@@ -12,16 +12,13 @@ export const metadata: Metadata = {
   title: { default: 'CSJ 資格ラボ', template: '%s | CSJ 資格ラボ' },
   description: '情報セキュリティマネジメント試験の分野別演習・本番形式の模擬試験・AI解説で合格を目指す学習アプリ',
   manifest: '/manifest.json',
-  icons: { icon: '/icon.svg', apple: '/icon.svg' },
+  icons: { icon: '/icon.svg', apple: '/apple-icon.png' },
 }
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
-    { media: '(prefers-color-scheme: dark)', color: '#0e1117' },
-  ],
+  themeColor: '#eff0f2',
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

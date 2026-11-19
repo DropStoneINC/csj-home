@@ -1,0 +1,20 @@
+// アプリアイコン（public/icon.svg と同じ図柄）。ヘッダーなどでロゴとして使う
+export default function AppLogo({ className = 'h-7 w-7' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" className={`${className} rounded-[22%] ring-1 ring-line`} aria-hidden>
+      <defs>
+        <clipPath id="app-logo-clip">
+          <rect width="64" height="64" rx="14" />
+        </clipPath>
+      </defs>
+      <g clipPath="url(#app-logo-clip)">
+        <rect width="64" height="64" fill="#0e0f11" />
+        <path d="M51 1.5l13 4.8v9.6c0 8-5.6 14.4-13 17.6-7.4-3.2-13-9.6-13-17.6V6.3z" fill="#3a3e45" />
+        <path d="M45.4 16.6l4 4 7.2-8" fill="none" stroke="#0e0f11" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M38.6 27.4A12.5 12.5 0 1 0 38.6 42.6" fill="none" stroke="#fff" strokeWidth="9.5" />
+        <circle cx="48.2" cy="40.6" r="3.6" fill="#f8d6cf" />
+        <circle cx="43.6" cy="45.4" r="4.4" fill="#e8492f" />
+      </g>
+    </svg>
+  )
+}

@@ -1,7 +1,8 @@
 'use client'
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { ShieldCheck, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import AppLogo from '@/components/AppLogo'
 import { getBrowserSupabase } from '@/lib/supabaseBrowser'
 
 function LoginForm() {
@@ -39,7 +40,7 @@ function LoginForm() {
   return (
     <form onSubmit={submit} className="card w-full max-w-sm p-6">
       <div className="flex items-center gap-2 font-bold">
-        <ShieldCheck className="h-6 w-6 text-accent" aria-hidden />
+        <AppLogo />
         CSJ 資格ラボ 管理画面
       </div>
       {!supabase ? (
