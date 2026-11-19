@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Bot, Send, Loader2 } from 'lucide-react'
+import { clientId } from '@/lib/telemetry'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 
@@ -44,7 +45,7 @@ export default function AskAI({ questionId, selected }: { questionId: string; se
       const res = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionId, selected, messages: history }),
+        body: JSON.stringify({ questionId, selected, messages: history, clientId: clientId() }),
         signal: ctrl.signal,
       })
       if (!res.ok || !res.body) {

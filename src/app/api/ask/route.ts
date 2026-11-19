@@ -1,9 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
-import { QUESTION_MAP, categoryOf, EXAM } from '@/data/exam'
+import { categoryOf, EXAM } from '@/data/exam'
+import { getQuestionMap } from '@/lib/server/bank'
+import { getSupabase } from '@/lib/server/supabase'
+import { cleanClientId } from '@/lib/server/api'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
+export const fetchCache = 'force-no-store'
 
 const KANA = ['ア', 'イ', 'ウ', 'エ']
 const MAX_TURNS = 12
@@ -43,7 +47,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '短時間に質問が集中しています。少し時間をおいてからお試しください。' }, { status: 429 })
   }
 
-  let body: { questionId?: unknown; selected?: unknown; messages?: unknown }
+  let body: { questionId?: unknown; selected?: unknown; messages?: unknown; clientId?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -51,6 +55,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 問題文はクライアントから受け取らず、サーバー側の問題データから組み立てる
+  const QUESTION_MAP = await getQuestionMap()
   const q = typeof body.questionId === 'string' ? QUESTION_MAP[body.questionId] : undefined
   if (!q) return NextResponse.json({ error: '問題が見つかりません。' }, { status: 400 })
 
@@ -75,6 +80,14 @@ export async function POST(req: NextRequest) {
     `学習者の解答: ${selected === null ? '未解答' : `${KANA[selected]}（${selected === q.answer ? '正解' : '不正解'}）`}`,
     `アプリの解説:\n${q.explanation}`,
   ].join('\n\n')
+
+  // 利用状況の集計用に匿名で記録する（失敗しても回答は続ける）
+  const clientId = cleanClientId(body.clientId)
+  const db = getSupabase()
+  if (db && clientId) {
+    const { error } = await db.from('events').insert({ type: 'ai_ask', client_id: clientId, question_id: q.id })
+    if (error) console.error('ai_ask log failed', error.message)
+  }
 
   const client = new Anthropic()
   const stream = client.beta.messages.stream({

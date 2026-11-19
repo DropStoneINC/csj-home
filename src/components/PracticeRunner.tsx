@@ -49,7 +49,7 @@ export default function PracticeRunner({ setup }: { setup: QuizSetup }) {
   // キーボード操作: 1-4 / A-D で選択、Enter で次へ
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (done || e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey) return
+      if (done || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || document.querySelector('dialog[open]') || e.metaKey || e.ctrlKey) return
       const k = e.key.toLowerCase()
       const map: Record<string, number> = { '1': 0, '2': 1, '3': 2, '4': 3, a: 0, b: 1, c: 2, d: 3 }
       if (k in map && !revealed) select(map[k])

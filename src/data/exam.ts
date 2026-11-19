@@ -65,11 +65,52 @@ export const LEVELS: { id: Level; name: string; description: string }[] = [
   { id: 3, name: '応用', description: '比較・状況判断' },
 ]
 
-export const QUESTIONS: Question[] = [
+/** リポジトリに同梱している元の問題データ */
+export const BASE_QUESTIONS: Question[] = [
   basics, threats, crypto, network, isms, risk, measures, incident, law, management, kase,
 ].flat() as Question[]
 
+/**
+ * 管理画面での編集内容（DB）。upserts は元データを置き換える／追加する問題、hidden は出題しない問題の ID。
+ */
+export interface QuestionOverrides {
+  version: string
+  upserts: Question[]
+  hidden: string[]
+}
+
+/** 元データに上書きを適用した問題一覧を作る（元データの並び順を保ち、追加分は ID 順で末尾に置く） */
+export function mergeQuestions(base: Question[], o: Pick<QuestionOverrides, 'upserts' | 'hidden'>): Question[] {
+  const hidden = new Set(o.hidden)
+  const up = new Map(o.upserts.map(q => [q.id, q]))
+  const merged: Question[] = []
+  const seen = new Set<string>()
+  for (const q of base) {
+    seen.add(q.id)
+    if (hidden.has(q.id)) continue
+    merged.push(up.get(q.id) ?? q)
+  }
+  const added = o.upserts.filter(q => !seen.has(q.id) && !hidden.has(q.id)).sort((a, b) => a.id.localeCompare(b.id))
+  return [...merged, ...added]
+}
+
+/** 現在出題する問題（管理画面の上書きを適用済み）。applyOverrides で中身が入れ替わる */
+export const QUESTIONS: Question[] = [...BASE_QUESTIONS]
+
 export const QUESTION_MAP: Record<string, Question> = Object.fromEntries(QUESTIONS.map(q => [q.id, q]))
+
+let appliedVersion = ''
+
+/** 上書きを適用する。同じ version なら何もしない（描画中に呼んでも安全） */
+export function applyOverrides(o: QuestionOverrides | null) {
+  const version = o?.version ?? ''
+  if (version === appliedVersion) return
+  appliedVersion = version
+  const next = o ? mergeQuestions(BASE_QUESTIONS, o) : BASE_QUESTIONS
+  QUESTIONS.splice(0, QUESTIONS.length, ...next)
+  for (const k of Object.keys(QUESTION_MAP)) delete QUESTION_MAP[k]
+  for (const q of next) QUESTION_MAP[q.id] = q
+}
 
 export const categoryOf = (id: CategoryId) => CATEGORIES.find(c => c.id === id)!
 export const questionsIn = (category: CategoryId, level?: Level) =>

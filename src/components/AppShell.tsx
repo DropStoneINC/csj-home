@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
 import { Home, BookOpen, Timer, RotateCcw, ShieldCheck } from 'lucide-react'
+import Announcements, { type PublicAnnouncement } from './Announcements'
 
 const NAV = [
   { href: '/', label: 'ホーム', icon: Home },
@@ -11,8 +12,10 @@ const NAV = [
   { href: '/review', label: '復習・記録', icon: RotateCcw },
 ]
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function AppShell({ children, announcements }: { children: React.ReactNode; announcements: PublicAnnouncement[] }) {
   const pathname = usePathname()
+  // 管理画面は独自のレイアウトを使う
+  if (pathname.startsWith('/admin')) return <>{children}</>
   // 問題を解いている間はナビを隠して集中できるようにする
   const focus = pathname.startsWith('/quiz')
   const active = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href))
@@ -43,7 +46,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
       )}
-      <main className={clsx('mx-auto w-full max-w-4xl flex-1 px-4', focus ? 'py-4' : 'py-6 pb-28 sm:pb-10')}>{children}</main>
+      <main className={clsx('mx-auto w-full max-w-4xl flex-1 px-4', focus ? 'py-4' : 'py-6 pb-28 sm:pb-10')}>
+        {!focus && <Announcements items={announcements} />}
+        {children}
+      </main>
       {!focus && (
         <nav
           className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"

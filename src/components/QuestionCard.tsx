@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { Check, X, Bookmark } from 'lucide-react'
 import { categoryOf, LEVELS, type Question } from '@/data/exam'
 import { toggleBookmark, useProgress } from '@/lib/progress'
+import ReportButton from './ReportButton'
 
 export const KANA = ['ア', 'イ', 'ウ', 'エ']
 
@@ -80,6 +81,9 @@ export default function QuestionCard({ q, selected, revealed, onSelect }: Props)
             {selected === q.answer ? '正解！' : selected === null ? `未解答 — 正解は ${KANA[q.answer]}` : `不正解 — 正解は ${KANA[q.answer]}`}
           </div>
           <p className="whitespace-pre-wrap text-sm leading-7">{q.explanation}</p>
+          <div className="mt-3 text-right">
+            <ReportButton questionId={q.id} selected={selected} />
+          </div>
         </div>
       )}
     </article>
