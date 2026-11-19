@@ -1,176 +1,147 @@
 'use client'
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import GlowCard from '@/components/common/GlowCard'
-import ScoreRing, { getRankInfo } from '@/components/common/ScoreRing'
-import { supabase } from '@/lib/supabase'
-import { getUserScore, getScoreEvents } from '@/lib/db'
+import { useState } from 'react'
+import { Sparkles, Flame, Target, CalendarDays, ChevronRight, RotateCcw, Shuffle, Timer } from 'lucide-react'
+import { CATEGORIES, EXAM } from '@/data/exam'
+import {
+  useProgress, overallStats, categoryStats, studyStreak, weakQuestions, today, updateSettings,
+} from '@/lib/progress'
+import { ProgressBar, pct, toneOf } from '@/components/ui'
 
-const quickActions = [
-  { label: '自己診断を始める', href: '/assessment/self', icon: '👤', color: 'cyan' as const },
-  { label: '自社診断を始める', href: '/assessment/company', icon: '🏢', color: 'green' as const },
-  { label: '脅威を通報する', href: '/threat/report', icon: '🚨', color: 'red' as const },
-  { label: '脅威を検索する', href: '/threat/search', icon: '🔎', color: 'cyan' as const },
-  { label: '学習を始める', href: '/learn/cloud-security', icon: '📚', color: 'purple' as const },
-  { label: 'AIに相談する', href: '/agent', icon: '🤖', color: 'cyan' as const },
-]
+function daysUntil(date: string) {
+  const [y, m, d] = date.split('-').map(Number)
+  const target = new Date(y, m - 1, d)
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  return Math.round((target.getTime() - now.getTime()) / 86_400_000)
+}
 
 export default function HomePage() {
-  const [chatInput, setChatInput] = useState('')
-  const [score, setScore] = useState(0)
-  const [displayName, setDisplayName] = useState('')
-  const [loggedIn, setLoggedIn] = useState(false)
-  const [lastDelta, setLastDelta] = useState<number | null>(null)
-  const [aiTip, setAiTip] = useState('ログインして診断を受けると、AIがあなたに合った改善提案をします。')
-
-  useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      setLoggedIn(true)
-
-      // Get profile name
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', user.id)
-        .single()
-      if (profile) setDisplayName(profile.display_name || '')
-
-      // Get score
-      const userScore = await getUserScore(user.id)
-      if (userScore) setScore(userScore.overall_score || 0)
-
-      // Get latest event for delta
-      const events = await getScoreEvents(user.id, 1)
-      if (events.length > 0) setLastDelta(events[0].delta)
-
-      // Dynamic AI tip based on rank
-      const s = userScore?.overall_score || 0
-      const { rank } = getRankInfo(s)
-      if (s === 0) {
-        setAiTip('まずは「自己診断テスト」を受けて、最初のポイントを獲得しましょう。')
-      } else if (s < 10) {
-        setAiTip(`あと${10 - s}ptでTraineeランクに昇格！自社診断も受けてみましょう。`)
-      } else if (s < 100) {
-        setAiTip(`現在${rank.name}ランク！Guardianランク（100pt）を目指して学習コースに取り組みましょう。`)
-      } else if (s < 300) {
-        setAiTip(`${rank.name}ランク到達！Protectorランク（300pt）に向けて脅威通報や演習にも挑戦しましょう。`)
-      } else if (s < 1000) {
-        setAiTip(`${rank.name}ランク！Commanderランク（1,000pt）到達で最高位に。実践力を高めていきましょう。`)
-      } else {
-        setAiTip(`${rank.name}ランク到達！次のランクアップは${(Math.floor(s / 1000) + 1) * 1000}pt。継続的な活動がさらなる強化につながります。`)
-      }
-    }
-    load()
-  }, [])
-
-  // Task completion based on score
-  const tasks = [
-    { text: '自己診断テストを完了する', score_label: '+5', done: score >= 5, href: '/assessment/self' },
-    { text: '自社診断テストを完了する', score_label: '+8', done: score >= 13, href: '/assessment/company' },
-    { text: 'メール/クラウド簡易診断を実施する', score_label: '+8', done: false, href: '/assessment/email-cloud' },
-  ]
+  const p = useProgress()
+  const all = overallStats(p)
+  const streak = studyStreak(p)
+  const todayCount = p.daily[today()] ?? 0
+  const goal = p.settings.dailyGoal
+  const weak = weakQuestions(p).length
+  const [editingDate, setEditingDate] = useState(false)
+  const left = p.settings.examDate ? daysUntil(p.settings.examDate) : null
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyber-card via-cyber-surface to-cyber-bg border border-cyber-border/50 p-6 md:p-8">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-cyber-glow/5 rounded-full blur-3xl" />
-        <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
-          <ScoreRing score={score} size={100} />
-          <div className="flex-1">
-            <h2 className="text-xl font-bold mb-1">
-              {loggedIn ? `おかえりなさい${displayName ? `、${displayName}さん` : ''}` : 'Cyber Shield Agent へようこそ'}
-            </h2>
-            <p className="text-cyber-muted text-sm mb-1">
-              {loggedIn
-                ? <>累計 <span className="text-cyber-glow font-bold">{score.toLocaleString()}</span> pt{lastDelta !== null && <> ／前回 <span className={lastDelta > 0 ? 'text-cyber-green' : 'text-cyber-red'}>{lastDelta > 0 ? '+' : ''}{lastDelta}</span></>}</>
-                : <><a href="/login" className="text-cyber-glow underline">ログイン</a>してスコアを記録しましょう</>
-              }
-            </p>
-            {loggedIn && (() => {
-              const info = getRankInfo(score)
-              return (
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: info.rank.color + '20', color: info.rank.color, border: `1px solid ${info.rank.color}40` }}>
-                    {info.rank.icon} {info.rank.name}
-                  </span>
-                  <div className="flex-1 max-w-[160px] h-1.5 bg-cyber-bg/50 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${info.progress * 100}%`, backgroundColor: info.rank.color }} />
+    <div className="space-y-6">
+      <section className="card overflow-hidden">
+        <div className="bg-gradient-to-br from-accent/10 via-transparent to-transparent p-5 sm:p-6">
+          <p className="label">{EXAM.name}</p>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              {left !== null && !editingDate ? (
+                <button onClick={() => setEditingDate(true)} className="text-left" title="試験日を変更">
+                  <div className="text-sm text-muted">試験日まで</div>
+                  <div className="tabular text-4xl font-bold">
+                    {left > 0 ? <>あと {left}<span className="ml-1 text-lg">日</span></> : left === 0 ? '本日です' : '試験日を過ぎました'}
                   </div>
-                  <span className="text-[10px] text-cyber-muted">次 {info.nextThreshold.toLocaleString()}pt</span>
+                </button>
+              ) : (
+                <div>
+                  <label htmlFor="exam-date" className="flex items-center gap-1.5 text-sm text-muted">
+                    <CalendarDays className="h-4 w-4" aria-hidden />受験予定日を設定すると、残り日数を表示します
+                  </label>
+                  <input
+                    id="exam-date"
+                    type="date"
+                    className="mt-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+                    defaultValue={p.settings.examDate ?? ''}
+                    onChange={e => {
+                      updateSettings({ examDate: e.target.value || null })
+                      if (e.target.value) setEditingDate(false)
+                    }}
+                  />
                 </div>
-              )
-            })()}
-            <div className="bg-cyber-bg/50 rounded-lg border border-cyber-border/30 p-3">
-              <p className="text-xs text-cyber-muted mb-1">🤖 AIからの提案</p>
-              <p className="text-sm">{aiTip}</p>
+              )}
+            </div>
+            <div className="flex gap-6 text-sm">
+              <div>
+                <div className="flex items-center gap-1 text-muted"><Flame className="h-4 w-4 text-warn" aria-hidden />連続学習</div>
+                <div className="tabular text-2xl font-bold">{streak}<span className="ml-0.5 text-sm font-medium">日</span></div>
+              </div>
+              <div>
+                <div className="flex items-center gap-1 text-muted"><Target className="h-4 w-4 text-accent" aria-hidden />今日</div>
+                <div className="tabular text-2xl font-bold">{todayCount}<span className="ml-0.5 text-sm font-medium text-muted">/ {goal}問</span></div>
+              </div>
             </div>
           </div>
+          <ProgressBar value={todayCount / goal} tone={todayCount >= goal ? 'ok' : 'accent'} className="mt-4" />
         </div>
-      </div>
+      </section>
 
-      {/* AI Chat Quick Input */}
-      <GlowCard className="!p-4">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🤖</span>
-          <input
-            type="text"
-            placeholder="何から始めればいい？ / このメール怪しい？ / うちの会社の弱点は？"
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            className="flex-1 bg-cyber-bg/50 border border-cyber-border/50 rounded-lg px-4 py-2.5 text-sm text-cyber-text placeholder-cyber-muted/50 focus:outline-none focus:border-cyber-glow/50 transition-all"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && chatInput.trim()) {
-                window.location.href = `/agent?q=${encodeURIComponent(chatInput)}`
-              }
-            }}
-          />
-          <Link
-            href={`/agent${chatInput ? `?q=${encodeURIComponent(chatInput)}` : ''}`}
-            className="px-4 py-2.5 bg-cyber-glow/10 text-cyber-glow border border-cyber-glow/30 rounded-lg text-sm font-medium hover:bg-cyber-glow/20 transition-all"
-          >
-            送信
-          </Link>
-        </div>
-      </GlowCard>
+      <section className="grid grid-cols-3 gap-3">
+        <Link href="/quiz?mode=smart&n=10" className="card group flex items-center gap-3 border-accent/40 bg-accent p-4 text-accent-ink col-span-3">
+          <Sparkles className="h-6 w-6 shrink-0" aria-hidden />
+          <div className="flex-1">
+            <div className="font-bold">おすすめの10問を解く</div>
+            <div className="text-sm opacity-90">未解答と、そろそろ忘れそうな問題を自動で選びます</div>
+          </div>
+          <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+        </Link>
+        <Link href={weak ? '/quiz?mode=weak' : '/review'} className="card flex flex-col gap-2 p-3 hover:bg-sunken sm:flex-row sm:items-center sm:gap-3 sm:p-4">
+          <RotateCcw className="h-5 w-5 text-ng" aria-hidden />
+          <div>
+            <div className="text-sm font-semibold sm:text-base">苦手を復習</div>
+            <div className="text-xs text-muted">{weak ? `${weak}問` : 'まだありません'}</div>
+          </div>
+        </Link>
+        <Link href="/quiz?mode=random&n=10" className="card flex flex-col gap-2 p-3 hover:bg-sunken sm:flex-row sm:items-center sm:gap-3 sm:p-4">
+          <Shuffle className="h-5 w-5 text-accent" aria-hidden />
+          <div>
+            <div className="text-sm font-semibold sm:text-base">ランダム10問</div>
+            <div className="text-xs text-muted">全分野から出題</div>
+          </div>
+        </Link>
+        <Link href="/mock" className="card flex flex-col gap-2 p-3 hover:bg-sunken sm:flex-row sm:items-center sm:gap-3 sm:p-4">
+          <Timer className="h-5 w-5 text-warn" aria-hidden />
+          <div>
+            <div className="text-sm font-semibold sm:text-base">模擬試験</div>
+            <div className="text-xs text-muted">本番形式 {EXAM.format.subjectA + EXAM.format.subjectB}問・{EXAM.format.minutes}分</div>
+          </div>
+        </Link>
+      </section>
 
-      {/* Today's Tasks */}
-      <GlowCard hover={false}>
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <span>📋</span> 今日のタスク
-        </h3>
-        <div className="space-y-2">
-          {tasks.map((task, i) => (
-            <Link key={i} href={task.href}>
-              <div className={`flex items-center gap-3 p-2.5 rounded-lg transition-all ${task.done ? 'bg-cyber-green/5' : 'bg-cyber-bg/30 hover:bg-cyber-bg/50'}`}>
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs ${task.done ? 'border-cyber-green bg-cyber-green/20 text-cyber-green' : 'border-cyber-border'}`}>
-                  {task.done && '✓'}
-                </div>
-                <span className={`flex-1 text-sm ${task.done ? 'text-cyber-muted line-through' : ''}`}>{task.text}</span>
-                <span className={`text-xs font-mono ${task.done ? 'text-cyber-green' : 'text-cyber-glow'}`}>{task.score_label}</span>
-              </div>
-            </Link>
-          ))}
+      <section className="card p-5">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-bold">全体の進み具合</h2>
+          <span className="text-sm text-muted">正答率 <span className="tabular font-semibold text-ink">{pct(all.accuracy)}</span></span>
         </div>
-      </GlowCard>
+        <div className="mt-3 flex items-center gap-3">
+          <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-sunken">
+            <div className="absolute inset-y-0 left-0 bg-accent/35" style={{ width: `${(all.answered / all.total) * 100}%` }} />
+            <div className="absolute inset-y-0 left-0 bg-ok" style={{ width: `${(all.mastered / all.total) * 100}%` }} />
+          </div>
+        </div>
+        <div className="mt-2 flex gap-4 text-xs text-muted">
+          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-ok" />定着 {all.mastered}</span>
+          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-accent/35" />解答済み {all.answered}</span>
+          <span>全 {all.total}問</span>
+        </div>
+      </section>
 
-      {/* Quick Actions */}
-      <div>
-        <h3 className="text-sm font-semibold mb-3 text-cyber-muted">クイックアクション</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {quickActions.map((action) => (
-            <Link key={action.href} href={action.href}>
-              <GlowCard glowColor={action.color} className="!p-4 text-center">
-                <div className="text-2xl mb-2">{action.icon}</div>
-                <p className="text-xs font-medium">{action.label}</p>
-              </GlowCard>
-            </Link>
-          ))}
+      <section>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="font-bold">分野別の習熟度</h2>
+          <Link href="/practice" className="text-sm font-medium text-accent">すべて見る</Link>
         </div>
-      </div>
+        <div className="card divide-y divide-line">
+          {CATEGORIES.map(c => {
+            const s = categoryStats(p, c.id)
+            return (
+              <Link key={c.id} href={`/practice/${c.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-sunken">
+                <div className="w-28 shrink-0 text-sm font-medium sm:w-48">{c.name}</div>
+                <ProgressBar value={s.total ? s.answered / s.total : 0} tone={toneOf(s.accuracy)} className="flex-1" />
+                <div className="tabular w-12 text-right text-sm text-muted">{pct(s.accuracy)}</div>
+              </Link>
+            )
+          })}
+        </div>
+        <p className="mt-2 text-xs text-muted">バーは解答済みの割合、色は正答率（緑 75%以上・黄 60%以上・赤 60%未満）です。</p>
+      </section>
     </div>
   )
 }
