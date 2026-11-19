@@ -13,11 +13,40 @@
 学習記録はログイン不要で、端末のブラウザ（localStorage）に保存されます。
 メールアドレスでログイン（Supabase Auth のマジックリンク）すると、Supabase の `study_progress` テーブルに保存され、複数の端末で同期されます（RLS で本人の行のみ読み書き可）。
 
+## 運用者用管理画面（`/admin`）
+
+| 画面 | できること |
+|---|---|
+| ダッシュボード | 利用者数・解答数・模試/演習の完了数・AI解説の質問数（日別）、正答率の低い問題、AIへの質問が多い問題、分野別の正答率 |
+| 問題管理 | 検索・絞り込み、編集（変更箇所を元データと比較表示）、追加、非公開化、元データに戻す、分野ごとの JSON 書き出し、正解位置の偏りチェック |
+| 誤り報告 | 学習者が解説画面の「問題の誤りを報告」から送った内容の確認・対応状況の管理 |
+| お知らせ | アプリ上部に出すお知らせ／メンテナンス告知の作成、表示期間の指定、公開・非公開 |
+
+### しくみ
+
+- データは Supabase（Postgres）に保存します。サーバーの秘密鍵（service_role）は使わず、公開キーと RLS だけで権限を守ります。
+  - **運用者**: Supabase Auth（メールアドレス＋パスワード）でログインし、`admin_users` テーブルにメールアドレスが登録されているユーザー。管理用テーブルは RLS で運用者だけが読み書きできます。
+  - **学習者**: テーブルには直接アクセスできず、入力を検証する DB 関数（`public_question_overrides` / `public_announcements` / `log_events` / `log_ai_ask` / `submit_report`）だけを呼べます。
+- **問題データ**: `src/data/questions/*.json` が元データ。管理画面で編集・追加した問題だけが DB の `questions` テーブルに入り、元データより優先されます。保存すると数秒でアプリに反映されます。DB に障害があっても元データだけで動きます。
+  編集内容をリポジトリに取り込むときは、問題管理画面の「JSON」で分野ごとに書き出して `src/data/questions/` に置き、コミット後に管理画面で「元データに戻す」を押して上書きを外してください。
+- **利用ログ**: 端末ごとのランダムな匿名ID・解答の正誤・演習の完了・AI解説の質問回数だけを `events` テーブルに送ります（氏名・メールアドレス・IP アドレスは保存しません）。
+- `/admin` と `/api/admin` は middleware でログインと運用者権限を確認し、変更系の API はクロスサイトからの送信を拒否します。
+
+### セットアップ
+
+1. Supabase の SQL Editor で `supabase/migrations/20261119000001_admin.sql` を実行する（Supabase CLI なら `supabase db push`）
+2. 運用者を登録する: Supabase の Authentication → Users でユーザーを作成し、SQL Editor で
+   `insert into public.admin_users (email) values ('運用者のメールアドレス');` を実行する（メールアドレスは小文字）
+3. Vercel の Environment Variables に `NEXT_PUBLIC_SUPABASE_URL`・`NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定して再デプロイする
+4. `https://<ドメイン>/admin` を開いてログインする。パスワードは管理画面右上の「アカウント」から変更できます
+
+環境変数が未設定の場合、学習アプリはこれまでどおり動作し、管理画面・誤り報告・利用ログだけが無効になります。
+
 ## 開発
 
 ```bash
 npm install
-cp .env.local.example .env.local   # ANTHROPIC_API_KEY を設定（AI解説を使う場合）
+cp .env.local.example .env.local   # AI解説・管理画面を使う場合は各キーを設定
 npm run dev
 ```
 
@@ -28,4 +57,4 @@ npm run dev
 
 ## デプロイ（Vercel）
 
-環境変数 `ANTHROPIC_API_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定してください。未設定でもアプリは動作し、AI解説だけが「準備中」と表示されます。
+環境変数 `ANTHROPIC_API_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定してください。未設定でもアプリは動作し、AI解説だけが「準備中」と表示されます。管理画面を使う場合は上記「運用者用管理画面」のセットアップも行ってください。

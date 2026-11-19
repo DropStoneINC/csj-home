@@ -2,6 +2,7 @@
 // 学習履歴の保存（端末の localStorage）。将来サーバー同期する場合もこの形をそのまま送れるようにしておく。
 import { useSyncExternalStore } from 'react'
 import { QUESTIONS, type CategoryId, type Question } from '@/data/exam'
+import { track } from './telemetry'
 
 const KEY = 'csj-progress-v1'
 
@@ -161,12 +162,14 @@ export function recordAnswer(questionId: string, correct: boolean) {
     answers: { ...p.answers, [questionId]: rec },
     daily: { ...p.daily, [d]: (p.daily[d] ?? 0) + 1 },
   })
+  track({ type: 'answer', q: questionId, ok: correct })
 }
 
 export function recordSession(s: Omit<SessionRecord, 'id' | 'at'>) {
   const p = load()
   const rec: SessionRecord = { ...s, id: `${Date.now()}`, at: Date.now() }
   save({ ...p, sessions: [rec, ...p.sessions].slice(0, 200) })
+  track({ type: 'session', mode: s.mode, total: s.total, score: s.correct })
 }
 
 export function toggleBookmark(questionId: string) {
