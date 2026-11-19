@@ -1,32 +1,28 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
-import ClientLayout from '@/components/layout/ClientLayout'
-
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+import AppShell from '@/components/AppShell'
 
 export const metadata: Metadata = {
-  title: 'Cyber Shield Agent',
-  description: '診断・学習・通報・検索・実践訓練を統合したサイバー防衛エージェントアプリ',
+  title: { default: 'CSJ 資格ラボ', template: '%s | CSJ 資格ラボ' },
+  description: '情報セキュリティマネジメント試験の分野別演習・本番形式の模擬試験・AI解説で合格を目指す学習アプリ',
   manifest: '/manifest.json',
-  icons: {
-    icon: '/icons/icon-192x192.png',
-    apple: '/icons/icon-192x192.png',
-  },
+  icons: { icon: '/icon.svg', apple: '/icon.svg' },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0a0e1a',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
+    { media: '(prefers-color-scheme: dark)', color: '#0e1117' },
+  ],
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja" className={inter.variable}>
-      <body className="bg-cyber-bg text-cyber-text antialiased font-sans">
-        <ClientLayout>{children}</ClientLayout>
+    <html lang="ja">
+      <body className="min-h-screen font-sans antialiased">
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   )
