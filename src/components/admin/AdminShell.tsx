@@ -2,7 +2,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
-import { LayoutDashboard, FileQuestion, Flag, Megaphone, LogOut, ShieldCheck, ExternalLink, UserRound, MessageSquarePlus } from 'lucide-react'
+import { LayoutDashboard, FileQuestion, Flag, Megaphone, LogOut, ExternalLink, UserRound, MessageSquarePlus } from 'lucide-react'
+import AppLogo from '@/components/AppLogo'
 import { getBrowserSupabase } from '@/lib/supabaseBrowser'
 
 const NAV = [
@@ -28,7 +29,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       <header className="sticky top-0 z-20 border-b border-line bg-surface/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
           <Link href="/admin" className="flex shrink-0 items-center gap-2 font-bold">
-            <ShieldCheck className="h-6 w-6 text-accent" aria-hidden />
+            <AppLogo />
             <span className="hidden sm:inline">CSJ 資格ラボ</span>
             <span className="rounded-md bg-ink px-1.5 py-0.5 text-[11px] font-semibold text-bg">管理</span>
           </Link>

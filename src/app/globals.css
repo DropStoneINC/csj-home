@@ -4,19 +4,19 @@
 
 /* 色トークン（RGB 値）。ダークモードは OS 設定に従い、data-theme で上書きできる */
 :root {
-  --bg: 246 247 249;
+  --bg: 239 240 242;
   --surface: 255 255 255;
-  --sunken: 238 240 244;
-  --line: 222 226 233;
-  --ink: 24 29 39;
-  --muted: 100 108 122;
-  --accent: 37 99 235;
-  --accent-soft: 232 240 254;
+  --sunken: 230 231 234;
+  --line: 219 221 225;
+  --ink: 14 15 17;
+  --muted: 98 102 110;
+  --accent: 214 64 36;
+  --accent-soft: 253 236 231;
   --accent-ink: 255 255 255;
   --ok: 22 135 84;
   --ok-soft: 229 246 237;
-  --ng: 205 49 58;
-  --ng-soft: 253 236 237;
+  --ng: 190 24 93;
+  --ng-soft: 252 231 241;
   --warn: 180 110 0;
   --warn-soft: 254 244 222;
   color-scheme: light;
@@ -24,19 +24,19 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: 14 17 23;
-    --surface: 24 28 36;
-    --sunken: 18 21 28;
-    --line: 45 51 63;
-    --ink: 232 235 240;
-    --muted: 150 158 172;
-    --accent: 96 145 255;
-    --accent-soft: 29 41 66;
-    --accent-ink: 10 14 22;
+    --bg: 14 15 17;
+    --surface: 24 25 29;
+    --sunken: 18 19 22;
+    --line: 44 46 52;
+    --ink: 236 237 240;
+    --muted: 152 156 165;
+    --accent: 240 110 82;
+    --accent-soft: 58 30 24;
+    --accent-ink: 14 15 17;
     --ok: 72 199 132;
     --ok-soft: 20 48 36;
-    --ng: 244 108 114;
-    --ng-soft: 58 28 32;
+    --ng: 244 114 168;
+    --ng-soft: 60 24 40;
     --warn: 238 176 70;
     --warn-soft: 56 43 20;
     color-scheme: dark;
@@ -44,19 +44,19 @@
 }
 
 :root[data-theme='dark'] {
-  --bg: 14 17 23;
-  --surface: 24 28 36;
-  --sunken: 18 21 28;
-  --line: 45 51 63;
-  --ink: 232 235 240;
-  --muted: 150 158 172;
-  --accent: 96 145 255;
-  --accent-soft: 29 41 66;
-  --accent-ink: 10 14 22;
+  --bg: 14 15 17;
+  --surface: 24 25 29;
+  --sunken: 18 19 22;
+  --line: 44 46 52;
+  --ink: 236 237 240;
+  --muted: 152 156 165;
+  --accent: 240 110 82;
+  --accent-soft: 58 30 24;
+  --accent-ink: 14 15 17;
   --ok: 72 199 132;
   --ok-soft: 20 48 36;
-  --ng: 244 108 114;
-  --ng-soft: 58 28 32;
+  --ng: 244 114 168;
+  --ng-soft: 60 24 40;
   --warn: 238 176 70;
   --warn-soft: 56 43 20;
   color-scheme: dark;

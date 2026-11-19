@@ -2,7 +2,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
-import { Home, BookOpen, Timer, RotateCcw, ShieldCheck, Cloud, CloudOff, UserRound } from 'lucide-react'
+import { Home, BookOpen, Timer, RotateCcw, Cloud, CloudOff, UserRound } from 'lucide-react'
+import AppLogo from '@/components/AppLogo'
 import { useSync, useSyncEngine } from '@/lib/sync'
 import Announcements, { type PublicAnnouncement } from './Announcements'
 import FeedbackButton from './FeedbackButton'
@@ -31,7 +32,7 @@ export default function AppShell({ children, announcements }: { children: React.
         <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur">
           <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
             <Link href="/" className="flex items-center gap-2 font-bold">
-              <ShieldCheck className="h-6 w-6 text-accent" aria-hidden />
+              <AppLogo />
               <span>CSJ 資格ラボ</span>
             </Link>
             <div className="flex items-center gap-1">
